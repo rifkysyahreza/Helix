@@ -40,6 +40,10 @@ Still to build next:
 - post-trade analytics and evolution logic specific to futures
 - deeper cleanup of inherited Meridian surfaces
 
+Phase 7 note:
+- Helix now has nonce generation and live-submit intent scaffolding
+- final live order signing is still intentionally gated until dependencies are installed and the exact protocol payload is verified
+
 ---
 
 ## Intended architecture
@@ -81,6 +85,7 @@ Current v0 status:
 - steps 1 to 5 are now partially wired
 - step 6 still needs deeper futures-specific synthesis
 - live execution readiness and guardrails are scaffolded
+- nonce generation and live-submit intent scaffolding exist
 - final exchange submission logic is intentionally still gated
 
 ---

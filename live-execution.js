@@ -1,9 +1,31 @@
+import { nextNonce } from "./nonce-manager.js";
+
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) {
     throw new Error(`${name} is required for live execution.`);
   }
   return value;
+}
+
+function detectLibraryReadiness() {
+  try {
+    const bs58 = requireModule("bs58");
+    const hashes = requireModule("@noble/hashes/sha3");
+    return {
+      ready: Boolean(bs58 && hashes),
+      missing: [],
+    };
+  } catch (error) {
+    return {
+      ready: false,
+      missing: [error.message],
+    };
+  }
+}
+
+function requireModule(name) {
+  throw new Error(`Dependency not installed for live execution: ${name}. Run npm install first.`);
 }
 
 export function getLiveExecutionReadiness() {
@@ -17,12 +39,26 @@ export function getLiveExecutionReadiness() {
   if (!agentWalletAddress) missing.push("HYPERLIQUID_AGENT_WALLET_ADDRESS");
   if (!agentWalletPrivateKey) missing.push("HYPERLIQUID_AGENT_WALLET_PRIVATE_KEY");
 
+  const libraries = detectLibraryReadiness();
+
   return {
     enabled,
-    ready: enabled && missing.length === 0,
+    ready: enabled && missing.length === 0 && libraries.ready,
     missing,
     accountAddress,
     agentWalletAddress,
+    libraries,
+  };
+}
+
+function buildOrderIntent({ symbol, side, sizeUsd, leverage }) {
+  return {
+    symbol,
+    side,
+    sizeUsd,
+    leverage,
+    nonce: nextNonce(),
+    timestamp: Date.now(),
   };
 }
 
@@ -49,17 +85,14 @@ export async function submitLiveOpenOrder({ symbol, side, sizeUsd, leverage }) {
   requireEnv("HYPERLIQUID_AGENT_WALLET_ADDRESS");
   requireEnv("HYPERLIQUID_AGENT_WALLET_PRIVATE_KEY");
 
+  const orderIntent = buildOrderIntent({ symbol, side, sizeUsd, leverage });
+
   return {
     success: true,
     submitted: false,
     mode: "live-guarded",
-    note: "Live Hyperliquid order submission seam is enabled but exact signing payload is not finalized yet. This call proves readiness, not final exchange submission.",
-    orderIntent: {
-      symbol,
-      side,
-      sizeUsd,
-      leverage,
-    },
+    note: "Order payload skeleton and nonce generation are ready, but final Hyperliquid signing/submission code still requires installed crypto deps plus protocol-verified implementation.",
+    orderIntent,
     readiness,
   };
 }
@@ -91,11 +124,13 @@ export async function submitLiveCloseOrder({ trade }) {
     success: true,
     submitted: false,
     mode: "live-guarded",
-    note: "Live Hyperliquid close submission seam is enabled but exact signing payload is not finalized yet. This call proves readiness, not final exchange submission.",
+    note: "Close payload skeleton and nonce generation are ready, but final Hyperliquid signing/submission code still requires installed crypto deps plus protocol-verified implementation.",
     closeIntent: {
       tradeId: trade.tradeId,
       symbol: trade.symbol,
       side: trade.side,
+      nonce: nextNonce(),
+      timestamp: Date.now(),
     },
     readiness,
   };
