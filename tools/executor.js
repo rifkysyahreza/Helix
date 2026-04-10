@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "../config.js";
 import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, buildSymbolSnapshot } from "./hyperliquid.js";
+import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades } from "../state.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -42,6 +43,15 @@ function scoreSnapshot(snapshot) {
   if (Math.abs(snapshot.funding || 0) <= config.screening.maxFundingAbsPct) score += 1;
   if ((snapshot.maxLeverage || 0) >= 3) score += 1;
   return score;
+}
+
+function writeLifecycleJournal(kind, payload) {
+  appendJournal({
+    timestamp: new Date().toISOString(),
+    type: "trade_lifecycle",
+    kind,
+    payload,
+  });
 }
 
 const toolMap = {
@@ -128,9 +138,49 @@ const toolMap = {
     };
   },
 
+  async place_order({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct }) {
+    const proposal = await toolMap.propose_trade({ symbol, side });
+    const trade = createTradeRecord({
+      symbol,
+      side,
+      sizeUsd: sizeUsd ?? proposal.sizeUsd,
+      thesis: thesis || proposal.thesis,
+      stopLossPct: stopLossPct ?? proposal.stopLoss,
+      takeProfitPct: takeProfitPct ?? proposal.takeProfit,
+      snapshot: proposal.snapshot,
+    });
+    writeLifecycleJournal("place_order", trade);
+    return {
+      mode: process.env.DRY_RUN === "true" ? "dry-run" : "live-ready",
+      placed: true,
+      trade,
+    };
+  },
+
+  async reduce_position({ tradeId, reducePct, reason }) {
+    const trade = reduceTradeRecord(tradeId, { reducePct, reason });
+    if (!trade) return { error: `Trade not found: ${tradeId}` };
+    writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason });
+    return {
+      reduced: true,
+      trade,
+    };
+  },
+
+  async close_position({ tradeId, reason, exitPrice, realizedPnlPct }) {
+    const trade = closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct });
+    if (!trade) return { error: `Trade not found: ${tradeId}` };
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct });
+    return {
+      closed: true,
+      trade,
+    };
+  },
+
   async journal_trade_note({ title, body, tags = [] }) {
     const entry = {
       timestamp: new Date().toISOString(),
+      type: "note",
       title,
       body,
       tags,
@@ -141,12 +191,25 @@ const toolMap = {
 
   async review_recent_journal({ limit = 10 } = {}) {
     const notes = readJournal(limit);
+    const trades = listRecentTrades(limit);
+    const closed = trades.filter((trade) => trade.status === "closed");
+    const open = trades.filter((trade) => trade.status === "open");
+    const avgClosedPnl = closed.length
+      ? closed.reduce((sum, trade) => sum + (trade.realizedPnlPct || 0), 0) / closed.length
+      : null;
+
     return {
       count: notes.length,
       notes,
-      summary: notes.length
-        ? "Recent journal entries loaded. Review synthesis is still lightweight but data is now real and persisted."
-        : "No journal entries yet.",
+      recentTrades: trades,
+      lessons: {
+        openTrades: open.length,
+        closedTrades: closed.length,
+        avgClosedPnlPct: avgClosedPnl,
+        summary: closed.length
+          ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
+          : "No closed trades yet. Focus on collecting more execution history.",
+      },
     };
   },
 };

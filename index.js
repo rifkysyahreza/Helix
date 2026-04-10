@@ -4,6 +4,7 @@ import readline from "readline";
 import { preflightRuntime } from "./llm/runtime.js";
 import { config } from "./config.js";
 import { log } from "./logger.js";
+import { agentLoop } from "./agent.js";
 
 log("startup", "Helix starting...");
 log("startup", `Mode: ${process.env.DRY_RUN === "true" ? "DRY RUN" : "LIVE"}`);
@@ -25,57 +26,114 @@ try {
   process.exit(1);
 }
 
-function buildPrompt() {
-  return "[helix observer/planner shell]\n> ";
+async function runObserverCycle() {
+  log("cron", "Observer cycle");
+  const result = await agentLoop(
+    "Check current market context and summarize the top futures setups worth watching right now.",
+    config.llm.maxSteps,
+    [],
+    "TRADER",
+    config.llm.traderModel,
+    null,
+    { requireTool: true },
+  );
+  log("cycle", `Observer result: ${(result.content || "").slice(0, 300)}`);
 }
 
-function printRoadmap() {
-  console.log("\nHelix scaffold is live.");
-  console.log("Current focus:");
-  console.log("- Hyperliquid market observer");
-  console.log("- Setup planner");
-  console.log("- Trade journal");
-  console.log("- Post-trade self-review");
-  console.log("- Safe dry-run execution layer\n");
+async function runReviewCycle() {
+  log("cron", "Review cycle");
+  const result = await agentLoop(
+    "Review recent Helix journal notes and summarize the most important lessons.",
+    config.llm.maxSteps,
+    [],
+    "REVIEWER",
+    config.llm.reviewerModel,
+    null,
+    { requireTool: true },
+  );
+  log("cycle", `Review result: ${(result.content || "").slice(0, 300)}`);
 }
 
 cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
-  log("cron", "Observer tick placeholder");
+  runObserverCycle().catch((error) => log("cron_error", `Observer cycle failed: ${error.message}`));
 });
 
 cron.schedule(`*/${config.schedule.plannerIntervalMin} * * * *`, () => {
-  log("cron", "Planner tick placeholder");
+  runObserverCycle().catch((error) => log("cron_error", `Planner cycle failed: ${error.message}`));
 });
 
 cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {
-  log("cron", "Review tick placeholder");
+  runReviewCycle().catch((error) => log("cron_error", `Review cycle failed: ${error.message}`));
 });
 
-printRoadmap();
+console.log("\nHelix ReAct scaffold is live.");
+console.log("Commands: /status, /watch, /review, /paper-long <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  prompt: buildPrompt(),
+  prompt: "[helix]\n> ",
 });
 
 rl.prompt();
-rl.on("line", (line) => {
+rl.on("line", async (line) => {
   const input = line.trim();
   if (input === "/stop" || input === "exit") {
     rl.close();
     return;
   }
-  if (input === "/status") {
-    console.log(JSON.stringify({
-      runtime: config.llm.runtime,
-      model: process.env.LLM_MODEL || process.env.OPENCLAW_MODEL || null,
-      dryRun: process.env.DRY_RUN === "true",
-      schedule: config.schedule,
-    }, null, 2));
-  } else {
-    console.log("Helix scaffold is not fully wired yet. Next step is implementing Hyperliquid-specific tools and planner flow.");
+
+  try {
+    if (input === "/status") {
+      console.log(JSON.stringify({
+        runtime: config.llm.runtime,
+        model: process.env.LLM_MODEL || process.env.OPENCLAW_MODEL || null,
+        dryRun: process.env.DRY_RUN === "true",
+        schedule: config.schedule,
+      }, null, 2));
+    } else if (input === "/watch") {
+      const result = await agentLoop(
+        "Check market context and rank current Hyperliquid futures setups worth watching.",
+        config.llm.maxSteps,
+        [],
+        "TRADER",
+        config.llm.traderModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else if (input === "/review") {
+      const result = await agentLoop(
+        "Review recent Helix journal notes and summarize lessons.",
+        config.llm.maxSteps,
+        [],
+        "REVIEWER",
+        config.llm.reviewerModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else if (input.startsWith("/paper-long ")) {
+      const symbol = input.replace("/paper-long ", "").trim().toUpperCase();
+      const result = await agentLoop(
+        `Create a trade plan for ${symbol}, then place a dry-run long order using the plan and summarize what was recorded.`,
+        config.llm.maxSteps,
+        [],
+        "TRADER",
+        config.llm.traderModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else {
+      const result = await agentLoop(input, config.llm.maxSteps, [], "GENERAL", config.llm.generalModel);
+      console.log(result.content || "No response.");
+    }
+  } catch (error) {
+    log("repl_error", error.message);
+    console.error(error.message);
   }
+
   rl.prompt();
 }).on("close", () => {
   log("shutdown", "Helix stopped.");
