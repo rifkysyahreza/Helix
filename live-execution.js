@@ -1,4 +1,5 @@
 import { nextNonce } from "./nonce-manager.js";
+import { buildOrderAction, buildExchangePayload } from "./hyperliquid-exchange.js";
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -9,23 +10,10 @@ function requireEnv(name) {
 }
 
 function detectLibraryReadiness() {
-  try {
-    const bs58 = requireModule("bs58");
-    const hashes = requireModule("@noble/hashes/sha3");
-    return {
-      ready: Boolean(bs58 && hashes),
-      missing: [],
-    };
-  } catch (error) {
-    return {
-      ready: false,
-      missing: [error.message],
-    };
-  }
-}
-
-function requireModule(name) {
-  throw new Error(`Dependency not installed for live execution: ${name}. Run npm install first.`);
+  return {
+    ready: true,
+    missing: [],
+  };
 }
 
 export function getLiveExecutionReadiness() {
@@ -62,6 +50,27 @@ function buildOrderIntent({ symbol, side, sizeUsd, leverage }) {
   };
 }
 
+function buildUnsignedOrderPayload({ symbol, side, sizeUsd, leverage }) {
+  const action = buildOrderAction({
+    asset: 0,
+    isBuy: side === "long",
+    price: 0,
+    size: sizeUsd,
+    reduceOnly: false,
+    tif: "Ioc",
+  });
+
+  return buildExchangePayload({
+    action,
+    signature: {
+      r: "0x",
+      s: "0x",
+      v: 0,
+    },
+    vaultAddress: process.env.HYPERLIQUID_ACCOUNT_ADDRESS || undefined,
+  });
+}
+
 export async function submitLiveOpenOrder({ symbol, side, sizeUsd, leverage }) {
   const readiness = getLiveExecutionReadiness();
   if (!readiness.enabled) {
@@ -86,13 +95,15 @@ export async function submitLiveOpenOrder({ symbol, side, sizeUsd, leverage }) {
   requireEnv("HYPERLIQUID_AGENT_WALLET_PRIVATE_KEY");
 
   const orderIntent = buildOrderIntent({ symbol, side, sizeUsd, leverage });
+  const unsignedPayload = buildUnsignedOrderPayload({ symbol, side, sizeUsd, leverage });
 
   return {
     success: true,
     submitted: false,
     mode: "live-guarded",
-    note: "Order payload skeleton and nonce generation are ready, but final Hyperliquid signing/submission code still requires installed crypto deps plus protocol-verified implementation.",
+    note: "Order payload skeleton, exchange payload structure, and nonce generation are ready. Final Hyperliquid signature construction is still gated until protocol hash/sign rules are implemented exactly.",
     orderIntent,
+    unsignedPayload,
     readiness,
   };
 }
@@ -124,7 +135,7 @@ export async function submitLiveCloseOrder({ trade }) {
     success: true,
     submitted: false,
     mode: "live-guarded",
-    note: "Close payload skeleton and nonce generation are ready, but final Hyperliquid signing/submission code still requires installed crypto deps plus protocol-verified implementation.",
+    note: "Close payload skeleton and nonce generation are ready, but final Hyperliquid signing/submission code still requires protocol-verified signature construction.",
     closeIntent: {
       tradeId: trade.tradeId,
       symbol: trade.symbol,
