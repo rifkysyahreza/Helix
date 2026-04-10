@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { config } from "../config.js";
 import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, buildSymbolSnapshot } from "./hyperliquid.js";
 import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades } from "../state.js";
+import { openPerpPosition, closePerpPosition } from "../execution.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -200,8 +201,17 @@ const toolMap = {
     };
   },
 
-  async place_order({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct }) {
+  async place_order({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct, leverage = 1 }) {
     const proposal = await toolMap.propose_trade({ symbol, side });
+    const execution = await openPerpPosition({
+      symbol,
+      side,
+      sizeUsd: sizeUsd ?? proposal.sizeUsd,
+      leverage,
+    });
+    if (!execution.success) {
+      return execution;
+    }
     const trade = createTradeRecord({
       symbol,
       side,
@@ -211,11 +221,12 @@ const toolMap = {
       takeProfitPct: takeProfitPct ?? proposal.takeProfit,
       snapshot: proposal.snapshot,
     });
-    writeLifecycleJournal("place_order", trade);
+    writeLifecycleJournal("place_order", { trade, execution });
     return {
-      mode: process.env.DRY_RUN === "true" ? "dry-run" : "live-ready",
+      mode: execution.context.mode,
       placed: true,
       trade,
+      execution,
     };
   },
 
@@ -230,12 +241,19 @@ const toolMap = {
   },
 
   async close_position({ tradeId, reason, exitPrice, realizedPnlPct }) {
+    const trades = listRecentTrades(100);
+    const existing = trades.find((trade) => trade.tradeId === tradeId);
+    if (!existing) return { error: `Trade not found: ${tradeId}` };
+    const execution = await closePerpPosition({ trade: existing });
+    if (!execution.success) {
+      return execution;
+    }
     const trade = closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct });
-    if (!trade) return { error: `Trade not found: ${tradeId}` };
-    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct });
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution });
     return {
       closed: true,
       trade,
+      execution,
     };
   },
 

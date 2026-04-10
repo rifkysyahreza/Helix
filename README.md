@@ -101,6 +101,12 @@ Best-practice direction for Helix:
 - limits should exist at both agent layer and wallet layer
 - start in dry-run, then paper execution, then restricted live execution
 
+Hyperliquid API wallet notes that matter for Helix:
+- query account state using the master/subaccount address, not the agent wallet address
+- use agent wallets for signing, not for querying account state
+- do not casually reuse old agent-wallet addresses after deregistration/pruning
+- prefer one agent wallet per trading process to avoid nonce collisions
+
 That is the right shape for self-improving autonomy without handing the agent a totally unconstrained hot wallet.
 
 Recommended OpenClaw config for now:
