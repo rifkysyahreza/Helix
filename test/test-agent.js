@@ -1,18 +1,17 @@
-/**
- * Test the full agent loop in dry-run mode (no wallet needed for screening).
- * Run: DRY_RUN=true node test/test-agent.js
- */
-
 import "dotenv/config";
 import { agentLoop } from "../agent.js";
 
 async function main() {
-  console.log("=== Testing Agent Loop (DRY RUN) ===\n");
-  console.log("Goal: Discover top pools and recommend 3 LP opportunities\n");
+  console.log("=== Testing Helix Agent Loop (DRY RUN) ===\n");
 
   const result = await agentLoop(
-    "Run get_top_candidates. Then deploy_position into the #1 candidate using 0.1 SOL. Report what was deployed.",
-    5
+    "Use tools to inspect current market context, rank the best futures setups, and summarize the top idea.",
+    5,
+    [],
+    "TRADER",
+    null,
+    null,
+    { requireTool: true },
   );
 
   console.log("\n=== Agent Response ===");

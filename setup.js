@@ -1,9 +1,3 @@
-/**
- * Interactive setup wizard.
- * Guides user through .env + user-config.json creation.
- * Run: npm run setup
- */
-
 import readline from "readline";
 import fs from "fs";
 import path from "path";
@@ -11,20 +5,14 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = path.join(__dirname, "user-config.json");
-const ENV_PATH    = path.join(__dirname, ".env");
+const ENV_PATH = path.join(__dirname, ".env");
 
-const DEFAULT_MODEL = "openai/gpt-oss-20b:free";
+const DEFAULT_MODEL = "openai-codex/gpt-5.4";
 const DEFAULT_OPENCLAW_COMMAND = "openclaw";
 
 const RUNTIMES = [
-  {
-    label: "OpenAI-compatible (OpenRouter/OpenAI/LM Studio/Ollama/custom)",
-    key: "openai-chat",
-  },
-  {
-    label: "OpenClaw/Codex local bridge (MVP)",
-    key: "openclaw-codex",
-  },
+  { label: "OpenAI-compatible", key: "openai-chat" },
+  { label: "OpenClaw/Codex local bridge", key: "openclaw-codex" },
 ];
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -44,37 +32,23 @@ function askNum(question, defaultVal, { min, max } = {}) {
     while (true) {
       const raw = await ask(question, defaultVal);
       const n = parseFloat(raw);
-      if (isNaN(n))                        { console.log(`  ⚠ Please enter a number.`); continue; }
-      if (min !== undefined && n < min)    { console.log(`  ⚠ Minimum is ${min}.`);     continue; }
-      if (max !== undefined && n > max)    { console.log(`  ⚠ Maximum is ${max}.`);     continue; }
+      if (Number.isNaN(n)) { console.log("  ⚠ Please enter a number."); continue; }
+      if (min !== undefined && n < min) { console.log(`  ⚠ Minimum is ${min}.`); continue; }
+      if (max !== undefined && n > max) { console.log(`  ⚠ Maximum is ${max}.`); continue; }
       resolve(n);
       break;
     }
   });
 }
 
-function askBool(question, defaultVal) {
-  return new Promise(async (resolve) => {
-    while (true) {
-      const hint = defaultVal ? "Y/n" : "y/N";
-      const raw = await ask(`${question} [${hint}]`, "");
-      if (raw === "") { resolve(defaultVal); break; }
-      if (/^y(es)?$/i.test(raw)) { resolve(true);  break; }
-      if (/^n(o)?$/i.test(raw))  { resolve(false); break; }
-      console.log("  ⚠ Enter y or n.");
-    }
-  });
-}
-
 function askChoice(question, choices) {
   return new Promise(async (resolve) => {
-    const labels = choices.map((c, i) => `  ${i + 1}. ${c.label}`).join("\n");
+    console.log(`\n${question}`);
+    choices.forEach((choice, index) => console.log(`  ${index + 1}. ${choice.label}`));
     while (true) {
-      console.log(`\n${question}`);
-      console.log(labels);
-      const raw = await ask("Enter number", "");
-      const idx = parseInt(raw) - 1;
-      if (idx >= 0 && idx < choices.length) { resolve(choices[idx]); break; }
+      const raw = await ask("Enter number", "1");
+      const idx = parseInt(raw, 10) - 1;
+      if (idx >= 0 && idx < choices.length) return resolve(choices[idx]);
       console.log("  ⚠ Invalid choice.");
     }
   });
@@ -83,8 +57,8 @@ function askChoice(question, choices) {
 function parseEnv(content) {
   const map = {};
   for (const line of content.split("\n")) {
-    const m = line.match(/^([A-Z_]+)=(.*)$/);
-    if (m) map[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m) map[m[1]] = m[2].replace(/^['"]|['"]$/g, "");
   }
   return map;
 }
@@ -93,50 +67,6 @@ function buildEnv(map) {
   return Object.entries(map).map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
 }
 
-// ─── Presets ──────────────────────────────────────────────────────────────────
-const PRESETS = {
-  degen: {
-    label:                 "Degen",
-    timeframe:             "30m",
-    minOrganic:            60,
-    minHolders:            200,
-    maxMcap:               5_000_000,
-    takeProfitFeePct:      10,
-    stopLossPct:           -25,
-    outOfRangeWaitMinutes: 15,
-    managementIntervalMin: 5,
-    screeningIntervalMin:  15,
-    description: "30m timeframe, pumping tokens allowed, fast cycles. High risk/reward.",
-  },
-  moderate: {
-    label:                 "Moderate",
-    timeframe:             "4h",
-    minOrganic:            65,
-    minHolders:            500,
-    maxMcap:               10_000_000,
-    takeProfitFeePct:      5,
-    stopLossPct:           -15,
-    outOfRangeWaitMinutes: 30,
-    managementIntervalMin: 10,
-    screeningIntervalMin:  30,
-    description: "4h timeframe, balanced risk/reward. Recommended for most users.",
-  },
-  safe: {
-    label:                 "Safe",
-    timeframe:             "24h",
-    minOrganic:            75,
-    minHolders:            1000,
-    maxMcap:               10_000_000,
-    takeProfitFeePct:      3,
-    stopLossPct:           -10,
-    outOfRangeWaitMinutes: 60,
-    managementIntervalMin: 15,
-    screeningIntervalMin:  60,
-    description: "24h timeframe, stable pools only, avoids pumps. Lower yield, lower risk.",
-  },
-};
-
-// ─── Load existing state ───────────────────────────────────────────────────────
 const existingConfig = fs.existsSync(CONFIG_PATH)
   ? JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"))
   : {};
@@ -144,347 +74,63 @@ const existingEnv = fs.existsSync(ENV_PATH)
   ? parseEnv(fs.readFileSync(ENV_PATH, "utf8"))
   : {};
 
-const e  = (key, fallback) => existingConfig[key] ?? fallback;
-const ev = (key, fallback) => existingEnv[key] ?? fallback;
-
-// ─── Banner ────────────────────────────────────────────────────────────────────
 console.log(`
 ╔═══════════════════════════════════════════════╗
-║        Helix — Setup Wizard                ║
-║        Autonomous Hyperliquid futures LP Agent       ║
+║                 Helix Setup                  ║
+║      Hyperliquid futures sibling of Meridian ║
 ╚═══════════════════════════════════════════════╝
-
-This wizard creates your .env and user-config.json.
-Press Enter to keep the current/default value.
 `);
 
-// ─── Section 1: API Keys & Wallet ─────────────────────────────────────────────
-console.log("── API Keys & Wallet ─────────────────────────────────────────");
-
-const alreadySet = (val) => val ? "*** (already set — Enter to keep)" : "";
-
-const walletKey = await ask(
-  "Wallet private key (base58)",
-  alreadySet(ev("WALLET_PRIVATE_KEY", existingConfig.walletKey || ""))
-);
-
-const rpcUrl = await ask(
-  "RPC URL",
-  ev("RPC_URL", e("rpcUrl", "https://api.mainnet-beta.hyperliquid.com"))
-);
-
-const heliusKey = await ask(
-  "Helius API key (for balance lookups, optional)",
-  alreadySet(ev("HELIUS_API_KEY", ""))
-);
-
-// ─── Section 2: Telegram ──────────────────────────────────────────────────────
-console.log("\n── Telegram (optional — skip to disable) ─────────────────────");
-
-const telegramToken = await ask(
-  "Telegram bot token",
-  alreadySet(ev("TELEGRAM_BOT_TOKEN", ""))
-);
-
-const telegramChatId = await ask(
-  "Telegram chat ID",
-  ev("TELEGRAM_CHAT_ID", e("telegramChatId", ""))
-);
-
-// ─── Section 3: Preset ────────────────────────────────────────────────────────
-const presetChoice = await askChoice("Select a risk preset:", [
-  { label: `🔥 Degen    — ${PRESETS.degen.description}`,    key: "degen"    },
-  { label: `⚖️  Moderate — ${PRESETS.moderate.description}`, key: "moderate" },
-  { label: `🛡️  Safe     — ${PRESETS.safe.description}`,     key: "safe"     },
-  { label: "⚙️  Custom   — Configure every setting manually", key: "custom"  },
-]);
-
-const preset = presetChoice.key === "custom" ? null : PRESETS[presetChoice.key];
-const p = (key, fallback) => preset?.[key] ?? e(key, fallback);
-
-console.log(preset
-  ? `\n✓ ${preset.label} preset selected. Override individual values below (Enter to keep).\n`
-  : `\nCustom mode — configure all settings.\n`
-);
-
-// ─── Section 4: Deployment ────────────────────────────────────────────────────
-console.log("── Deployment ────────────────────────────────────────────────");
-
-const deployAmountSol = await askNum(
-  "SOL to deploy per position",
-  e("deployAmountSol", 0.3),
-  { min: 0.01, max: 50 }
-);
-
-const maxPositions = await askNum(
-  "Max concurrent positions",
-  e("maxPositions", 3),
-  { min: 1, max: 10 }
-);
-
-const minSolToOpen = await askNum(
-  "Min SOL balance to open a new position",
-  e("minSolToOpen", parseFloat((deployAmountSol + 0.05).toFixed(3))),
-  { min: 0.05 }
-);
-
-const dryRun = await askBool(
-  "Dry run mode? (no real transactions)",
-  e("dryRun", true)
-);
-
-// ─── Section 5: Risk & Filters ────────────────────────────────────────────────
-console.log("\n── Risk & Filters ────────────────────────────────────────────");
-
-const timeframe = await ask(
-  "Pool discovery timeframe (30m / 1h / 4h / 12h / 24h)",
-  p("timeframe", "4h")
-);
-
-const minOrganic = await askNum(
-  "Min organic score (0–100)",
-  p("minOrganic", 65),
-  { min: 0, max: 100 }
-);
-
-const minHolders = await askNum(
-  "Min token holders",
-  p("minHolders", 500),
-  { min: 1 }
-);
-
-const maxMcap = await askNum(
-  "Max token market cap USD",
-  p("maxMcap", 10_000_000),
-  { min: 100_000 }
-);
-
-// ─── Section 6: Exit Rules ────────────────────────────────────────────────────
-console.log("\n── Exit Rules ────────────────────────────────────────────────");
-
-const takeProfitFeePct = await askNum(
-  "Take profit when fees earned >= X% of deployed capital",
-  p("takeProfitFeePct", 5),
-  { min: 0.1, max: 100 }
-);
-
-const stopLossPct = await askNum(
-  "Stop loss at X% price drop (e.g. -15)",
-  p("stopLossPct", -15),
-  { min: -99, max: -1 }
-);
-
-const outOfRangeWaitMinutes = await askNum(
-  "Minutes out-of-range before closing",
-  p("outOfRangeWaitMinutes", 30),
-  { min: 1 }
-);
-
-// ─── Section 7: Scheduling ────────────────────────────────────────────────────
-console.log("\n── Scheduling ────────────────────────────────────────────────");
-
-const managementIntervalMin = await askNum(
-  "Management cycle interval (minutes)",
-  p("managementIntervalMin", 10),
-  { min: 1 }
-);
-
-const screeningIntervalMin = await askNum(
-  "Screening cycle interval (minutes)",
-  p("screeningIntervalMin", 30),
-  { min: 5 }
-);
-
-// ─── Section 8: LLM Runtime ──────────────────────────────────────────────────
-console.log("\n── LLM Runtime ───────────────────────────────────────────────");
-
-const runtimeChoice = await askChoice("Select LLM runtime:", RUNTIMES.map((r) => ({ label: r.label, key: r.key })));
-const llmRuntime = runtimeChoice.key === "openclaw" ? "openclaw-codex" : runtimeChoice.key;
-
-console.log(llmRuntime === "openclaw-codex"
-  ? "\nUsing OpenClaw/Codex bridge mode. Configure the local OpenClaw command below.\n"
-  : "\nUsing OpenAI-compatible runtime mode. Pick a provider below.\n"
-);
-
-// ─── Section 9: LLM Provider / Endpoint ──────────────────────────────────────
-console.log("\n── LLM Provider / Endpoint ───────────────────────────────────");
-
-const LLM_PROVIDERS = [
-  {
-    label:   "OpenRouter   (openrouter.ai — many models)",
-    key:     "openrouter",
-    baseUrl: "https://openrouter.ai/api/v1",
-    keyHint: "sk-or-...",
-    modelDefault: "nousresearch/hermes-3-llama-3.1-405b",
-  },
-  {
-    label:   "MiniMax      (api.minimax.io)",
-    key:     "minimax",
-    baseUrl: "https://api.minimax.io/v1",
-    keyHint: "your MiniMax API key",
-    modelDefault: "MiniMax-Text-01",
-  },
-  {
-    label:   "OpenAI       (api.openai.com)",
-    key:     "openai",
-    baseUrl: "https://api.openai.com/v1",
-    keyHint: "sk-...",
-    modelDefault: "gpt-4o",
-  },
-  {
-    label:   "Local / LM Studio / Ollama (OpenAI-compatible)",
-    key:     "local",
-    baseUrl: "http://localhost:1234/v1",
-    keyHint: "(leave blank or type any value)",
-    modelDefault: "local-model",
-  },
-  {
-    label:   "Custom       (any OpenAI-compatible endpoint)",
-    key:     "custom",
-    baseUrl: "",
-    keyHint: "your API key",
-    modelDefault: "",
-  },
-];
-
-let provider = { label: "OpenClaw/Codex bridge", key: "openclaw-codex", modelDefault: DEFAULT_MODEL };
-let llmBaseUrl = e("llmBaseUrl", "");
-let llmApiKeyExisting = e("llmApiKey", existingEnv.LLM_API_KEY || existingEnv.OPENROUTER_API_KEY || "");
-let llmApiKey = llmApiKeyExisting;
-let llmModelDefault = e("llmModel", process.env.LLM_MODEL || provider.modelDefault);
-let openrouterKey = existingEnv.OPENROUTER_API_KEY || "";
-let openClawAgentCommand = e("openClawAgentCommand", existingEnv.OPENCLAW_AGENT_COMMAND || DEFAULT_OPENCLAW_COMMAND);
-let openClawAgentTimeoutMs = e("openClawAgentTimeoutMs", parseInt(existingEnv.OPENCLAW_AGENT_TIMEOUT_MS || "300000", 10));
-let openClawAgentSessionPrefix = e("openClawAgentSessionPrefix", existingEnv.OPENCLAW_AGENT_SESSION_PREFIX || "helix-openclaw-bridge");
-let openClawAgentExtraArgs = e("openClawAgentExtraArgs", existingEnv.OPENCLAW_AGENT_EXTRA_ARGS || "--thinking low");
-
-if (llmRuntime === "openai-chat") {
-  const providerChoice = await askChoice("Select LLM provider:", LLM_PROVIDERS.map((p) => ({ label: p.label, key: p.key })));
-  provider = LLM_PROVIDERS.find((p) => p.key === providerChoice.key);
-
-  llmBaseUrl = provider.baseUrl;
-  console.log(`\nUsing ${provider.label}.`);
-  if (provider.key === "local" || provider.key === "custom") {
-    llmBaseUrl = await ask("Base URL", e("llmBaseUrl", provider.baseUrl || "http://localhost:1234/v1"));
-  }
-
-  llmApiKeyExisting = e("llmApiKey", existingEnv.LLM_API_KEY || existingEnv.OPENROUTER_API_KEY || "");
-  const llmApiKeyRaw = await ask("API Key", llmApiKeyExisting ? "*** (already set)" : (provider.keyHint || ""));
-  llmApiKey = llmApiKeyRaw.startsWith("***") ? llmApiKeyExisting : llmApiKeyRaw;
-  if (provider.key === "openrouter") {
-    openrouterKey = llmApiKey;
-  }
-  llmModelDefault = e("llmModel", process.env.LLM_MODEL || provider.modelDefault);
-} else {
-  console.log("Before launching Helix in bridge mode, make sure OpenClaw itself is logged into Codex. Recommended once per machine/profile:");
-  console.log("  openclaw onboard --auth-choice openai-codex");
-  console.log("  # or: openclaw models auth login --provider openai-codex\n");
-  openClawAgentCommand = await ask("OpenClaw command", e("openClawAgentCommand", existingEnv.OPENCLAW_AGENT_COMMAND || DEFAULT_OPENCLAW_COMMAND));
-  openClawAgentTimeoutMs = await askNum(
-    "OpenClaw timeout (ms)",
-    e("openClawAgentTimeoutMs", parseInt(existingEnv.OPENCLAW_AGENT_TIMEOUT_MS || "300000", 10)),
-    { min: 1000 }
-  );
-  openClawAgentSessionPrefix = await ask(
-    "OpenClaw session prefix",
-    e("openClawAgentSessionPrefix", existingEnv.OPENCLAW_AGENT_SESSION_PREFIX || "helix-openclaw-bridge")
-  );
-  openClawAgentExtraArgs = await ask(
-    "OpenClaw extra args",
-    e("openClawAgentExtraArgs", existingEnv.OPENCLAW_AGENT_EXTRA_ARGS || "--thinking low")
-  );
-  llmBaseUrl = "";
-  llmApiKey = "";
-  llmModelDefault = e("llmModel", process.env.OPENCLAW_MODEL || process.env.LLM_MODEL || DEFAULT_MODEL);
-}
-
-const llmModel = await ask("Model name", llmModelDefault);
-
-rl.close();
-
-// ─── Write .env ───────────────────────────────────────────────────────────────
-const isKept = (val) => !val || val.startsWith("***");
+const runtimeChoice = await askChoice("Choose runtime", RUNTIMES);
+const accountAddress = await ask("Hyperliquid account address", existingEnv.HYPERLIQUID_ACCOUNT_ADDRESS || existingConfig.hyperliquidAccountAddress || "");
+const apiUrl = await ask("Hyperliquid info API URL", existingEnv.HYPERLIQUID_API_URL || "https://api.hyperliquid.xyz/info");
+const wsUrl = await ask("Hyperliquid websocket URL (optional)", existingEnv.HYPERLIQUID_WS_URL || "");
+const dryRun = await ask("Dry run mode", String(existingEnv.DRY_RUN || existingConfig.dryRun || true));
+const timeframe = await ask("Screening timeframe", String(existingConfig.timeframe || "15m"));
+const volume = await askNum("Minimum 24h volume USD", existingConfig.min24hVolumeUsd || 50000000, { min: 0 });
+const oi = await askNum("Minimum open interest USD", existingConfig.minOpenInterestUsd || 5000000, { min: 0 });
+const leverage = await askNum("Max leverage", existingConfig.maxLeverage || 3, { min: 1, max: 20 });
+const size = await askNum("Default position size USD", existingConfig.defaultPositionSizeUsd || 150, { min: 1 });
 
 const envMap = {
   ...existingEnv,
-  ...(isKept(openrouterKey) ? {} : { OPENROUTER_API_KEY: openrouterKey }),
-  ...(isKept(walletKey)     ? {} : { WALLET_PRIVATE_KEY: walletKey }),
-  ...(rpcUrl                ? { RPC_URL: rpcUrl } : {}),
-  ...(isKept(heliusKey)     ? {} : { HELIUS_API_KEY: heliusKey }),
-  ...(isKept(telegramToken) ? {} : { TELEGRAM_BOT_TOKEN: telegramToken }),
-  ...(telegramChatId        ? { TELEGRAM_CHAT_ID: telegramChatId } : {}),
-  ...(llmRuntime            ? { LLM_RUNTIME: llmRuntime } : {}),
-  ...(llmRuntime === "openclaw-codex" ? { OPENCLAW_AGENT_COMMAND: openClawAgentCommand } : {}),
-  ...(llmRuntime === "openclaw-codex" ? { OPENCLAW_AGENT_TIMEOUT_MS: String(openClawAgentTimeoutMs) } : {}),
-  ...(llmRuntime === "openclaw-codex" ? { OPENCLAW_AGENT_SESSION_PREFIX: openClawAgentSessionPrefix } : {}),
-  ...(llmRuntime === "openclaw-codex" && openClawAgentExtraArgs ? { OPENCLAW_AGENT_EXTRA_ARGS: openClawAgentExtraArgs } : {}),
-  DRY_RUN: dryRun ? "true" : "false",
+  HYPERLIQUID_API_URL: apiUrl,
+  HYPERLIQUID_WS_URL: wsUrl,
+  HYPERLIQUID_ACCOUNT_ADDRESS: accountAddress,
+  DRY_RUN: String(dryRun),
+  LLM_RUNTIME: runtimeChoice.key,
 };
-fs.writeFileSync(ENV_PATH, buildEnv(envMap));
 
-// ─── Write user-config.json ────────────────────────────────────────────────────
+if (runtimeChoice.key === "openclaw-codex") {
+  envMap.OPENCLAW_AGENT_COMMAND = existingEnv.OPENCLAW_AGENT_COMMAND || DEFAULT_OPENCLAW_COMMAND;
+  envMap.OPENCLAW_AGENT_TIMEOUT_MS = existingEnv.OPENCLAW_AGENT_TIMEOUT_MS || "300000";
+  envMap.OPENCLAW_AGENT_SESSION_PREFIX = existingEnv.OPENCLAW_AGENT_SESSION_PREFIX || "helix-openclaw-bridge";
+  envMap.OPENCLAW_AGENT_EXTRA_ARGS = existingEnv.OPENCLAW_AGENT_EXTRA_ARGS || "--thinking low";
+  envMap.OPENCLAW_MODEL = existingEnv.OPENCLAW_MODEL || DEFAULT_MODEL;
+  envMap.LLM_MODEL = existingEnv.LLM_MODEL || DEFAULT_MODEL;
+} else {
+  envMap.LLM_MODEL = existingEnv.LLM_MODEL || DEFAULT_MODEL;
+}
+
 const userConfig = {
   ...existingConfig,
-  preset: presetChoice.key,
-  rpcUrl,
-  deployAmountSol,
-  maxPositions,
-  minSolToOpen,
+  dryRun: String(dryRun) === "true",
+  llmRuntime: runtimeChoice.key,
+  llmModel: envMap.LLM_MODEL,
+  hyperliquidAccountAddress: accountAddress,
+  min24hVolumeUsd: volume,
+  minOpenInterestUsd: oi,
+  maxLeverage: leverage,
+  defaultPositionSizeUsd: size,
   timeframe,
-  minOrganic,
-  minHolders,
-  maxMcap,
-  takeProfitFeePct,
-  stopLossPct,
-  outOfRangeWaitMinutes,
-  managementIntervalMin,
-  screeningIntervalMin,
-  llmRuntime,
-  llmProvider: provider.key,
-  llmBaseUrl,
-  llmModel,
-  ...(llmApiKey ? { llmApiKey } : {}),
-  ...(llmRuntime === "openclaw-codex" ? { openClawAgentCommand } : {}),
-  ...(llmRuntime === "openclaw-codex" ? { openClawAgentTimeoutMs } : {}),
-  ...(llmRuntime === "openclaw-codex" ? { openClawAgentSessionPrefix } : {}),
-  ...(llmRuntime === "openclaw-codex" && openClawAgentExtraArgs ? { openClawAgentExtraArgs } : {}),
-  telegramChatId: telegramChatId || "",
-  dryRun,
 };
 
-// Remove legacy key if present
-delete userConfig.emergencyPriceDropPct;
-
+fs.writeFileSync(ENV_PATH, buildEnv(envMap));
 fs.writeFileSync(CONFIG_PATH, JSON.stringify(userConfig, null, 2));
 
-// ─── Summary ──────────────────────────────────────────────────────────────────
-const presetName = preset ? `${preset.label}` : "Custom";
+console.log("\n✓ Wrote .env and user-config.json");
+console.log("Next:");
+console.log("  npm run test:openclaw-smoke");
+console.log("  npm run dev");
 
-console.log(`
-╔═══════════════════════════════════════════════╗
-║           Setup Complete                      ║
-╚═══════════════════════════════════════════════╝
-
-  Preset:       ${presetName}
-  Dry run:      ${dryRun ? "YES — no real transactions" : "NO — live trading"}
-
-  Deploy:       ${deployAmountSol} SOL/position  ·  max ${maxPositions} positions
-  Min balance:  ${minSolToOpen} SOL to open new position
-  Timeframe:    ${timeframe}  ·  organic ≥ ${minOrganic}  ·  holders ≥ ${minHolders}
-  Take profit:  fees ≥ ${takeProfitFeePct}%
-  Stop loss:    ${stopLossPct}% price drop
-  OOR close:    after ${outOfRangeWaitMinutes} min
-
-  Cycles:       management every ${managementIntervalMin}m  ·  screening every ${screeningIntervalMin}m
-  Runtime:      ${llmRuntime}
-  Provider:     ${provider.label.split("(")[0].trim()}
-  Model:        ${llmModel}
-  Bridge:       ${llmRuntime === "openclaw-codex" ? openClawAgentCommand : llmBaseUrl}
-
-  Telegram:     ${telegramToken ? "enabled" : "disabled"}
-  .env:         ${ENV_PATH}
-  Config:       ${CONFIG_PATH}
-
-Run "npm run dev" for a safe first launch, then "npm start" when ready.
-${llmRuntime === "openclaw-codex" ? '  OpenClaw auth: openclaw onboard --auth-choice openai-codex\n' : ""}${dryRun ? '\n  ⚠ DRY RUN is ON — set dryRun: false in user-config.json when ready for live trading.\n' : ""}
-`);
+rl.close();

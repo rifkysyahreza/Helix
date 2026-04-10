@@ -21,18 +21,23 @@ But its strategy brain is being rebuilt around:
 
 ## Current status
 
-This repo is an **initial scaffold**.
+This repo is now an **early working scaffold**.
 
-The reusable Meridian foundation is already carried over for:
+Already wired:
 - runtime abstraction
-- journaling and lessons plumbing
-- agent loop structure
-- config loading
-- logging
-- OpenClaw runtime support
-- dry-run execution flow
+- OpenClaw / Codex bridge support
+- ReAct-style agent loop
+- Hyperliquid market context fetch
+- Hyperliquid account state fetch
+- basic setup ranking heuristic
+- journal note persistence
+- dry-run execution posture
 
-The Hyperliquid-specific strategy and execution surfaces are being adapted next.
+Still to build next:
+- real order placement and close flows
+- richer market structure logic
+- post-trade analytics and evolution logic specific to futures
+- deeper cleanup of inherited Meridian surfaces
 
 ---
 
@@ -71,7 +76,10 @@ Helix v0 should support:
 5. journal trade decisions and outcomes
 6. learn from post-trade review
 
-Not full autonomous live trading on day one.
+Current v0 status:
+- steps 1 to 5 are now partially wired
+- step 6 still needs deeper futures-specific synthesis
+- live execution is intentionally not finished yet
 
 ---
 
