@@ -1,0 +1,27 @@
+{
+  "name": "helix",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Autonomous Hyperliquid futures trading agent with journaling and self-evolution loops",
+  "main": "index.js",
+  "bin": {
+    "helix": "cli.js"
+  },
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node index.js",
+    "dev": "DRY_RUN=true node index.js",
+    "test:agent": "DRY_RUN=true node test/test-agent.js",
+    "test:openclaw": "node test/test-openclaw-runtime.js",
+    "test:openclaw-smoke": "LLM_RUNTIME=openclaw-codex node test/test-openclaw-smoke.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "jsonrepair": "^3.13.3",
+    "node-cron": "^3.0.3",
+    "openai": "^4.73.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
