@@ -32,9 +32,10 @@ Already wired:
 - basic setup ranking heuristic
 - journal note persistence
 - dry-run execution posture
+- guarded live-execution readiness seam
 
 Still to build next:
-- real order placement and close flows
+- final verified Hyperliquid signing/submission payloads
 - richer market structure logic
 - post-trade analytics and evolution logic specific to futures
 - deeper cleanup of inherited Meridian surfaces
@@ -79,7 +80,8 @@ Helix v0 should support:
 Current v0 status:
 - steps 1 to 5 are now partially wired
 - step 6 still needs deeper futures-specific synthesis
-- live execution is intentionally not finished yet
+- live execution readiness and guardrails are scaffolded
+- final exchange submission logic is intentionally still gated
 
 ---
 

@@ -1,4 +1,5 @@
 import { validateNewPositionRisk, validateCloseRisk } from "./risk.js";
+import { submitLiveOpenOrder, submitLiveCloseOrder, getLiveExecutionReadiness } from "./live-execution.js";
 
 function executionMode() {
   if (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true") return "live";
@@ -26,6 +27,17 @@ export async function openPerpPosition(params) {
     };
   }
 
+  if (context.mode === "live") {
+    const live = await submitLiveOpenOrder(params);
+    return {
+      success: live.success,
+      blocked: live.blocked || false,
+      risk,
+      context: { ...context, readiness: getLiveExecutionReadiness() },
+      execution: live,
+    };
+  }
+
   return {
     success: true,
     context,
@@ -36,9 +48,7 @@ export async function openPerpPosition(params) {
       side: params.side,
       sizeUsd: params.sizeUsd,
       leverage: params.leverage,
-      note: context.mode === "live"
-        ? "Live adapter not implemented yet. This is the guarded execution seam."
-        : "Dry-run/paper execution recorded through guarded execution seam.",
+      note: "Dry-run/paper execution recorded through guarded execution seam.",
     },
   };
 }
@@ -55,6 +65,17 @@ export async function closePerpPosition({ trade }) {
     };
   }
 
+  if (context.mode === "live") {
+    const live = await submitLiveCloseOrder({ trade });
+    return {
+      success: live.success,
+      blocked: live.blocked || false,
+      risk,
+      context: { ...context, readiness: getLiveExecutionReadiness() },
+      execution: live,
+    };
+  }
+
   return {
     success: true,
     context,
@@ -64,9 +85,7 @@ export async function closePerpPosition({ trade }) {
       tradeId: trade.tradeId,
       symbol: trade.symbol,
       side: trade.side,
-      note: context.mode === "live"
-        ? "Live close adapter not implemented yet. This is the guarded execution seam."
-        : "Dry-run/paper close recorded through guarded execution seam.",
+      note: "Dry-run/paper close recorded through guarded execution seam.",
     },
   };
 }
