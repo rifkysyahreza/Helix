@@ -90,6 +90,19 @@ Helix keeps Meridian's runtime support, including:
 - OpenClaw local bridge
 - OpenClaw Codex login path
 
+## Safer autonomy architecture
+
+For a truly autonomous futures agent, I recommend using a **restricted execution wallet / agent wallet** instead of your main full-permission wallet.
+
+Best-practice direction for Helix:
+- strategist agent decides what to do
+- restricted execution wallet performs allowed trade actions
+- wallet should not have broad withdrawal powers
+- limits should exist at both agent layer and wallet layer
+- start in dry-run, then paper execution, then restricted live execution
+
+That is the right shape for self-improving autonomy without handing the agent a totally unconstrained hot wallet.
+
 Recommended OpenClaw config for now:
 
 ```env

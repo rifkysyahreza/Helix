@@ -37,12 +37,43 @@ function defaultSymbols() {
 
 function scoreSnapshot(snapshot) {
   let score = 0;
-  if (!snapshot) return score;
-  if ((snapshot.dayNtlVlm || 0) >= config.screening.min24hVolumeUsd) score += 2;
-  if ((snapshot.openInterest || 0) >= config.screening.minOpenInterestUsd) score += 2;
-  if (Math.abs(snapshot.funding || 0) <= config.screening.maxFundingAbsPct) score += 1;
-  if ((snapshot.maxLeverage || 0) >= 3) score += 1;
-  return score;
+  if (!snapshot) return { score, setupQuality: "skip", sideBias: "neutral", reasons: ["missing_snapshot"] };
+
+  const reasons = [];
+  if ((snapshot.dayNtlVlm || 0) >= config.screening.min24hVolumeUsd) {
+    score += 2;
+    reasons.push("strong_volume");
+  }
+  if ((snapshot.openInterest || 0) >= config.screening.minOpenInterestUsd) {
+    score += 2;
+    reasons.push("strong_oi");
+  }
+  if (Math.abs(snapshot.funding || 0) <= config.screening.maxFundingAbsPct) {
+    score += 1;
+    reasons.push("funding_not_extreme");
+  }
+  if ((snapshot.maxLeverage || 0) >= 3) {
+    score += 1;
+    reasons.push("sufficient_leverage_headroom");
+  }
+  if ((snapshot.premium || 0) < 0) {
+    score += 1;
+    reasons.push("discount_to_oracle");
+  }
+  if ((snapshot.premium || 0) > 0) {
+    score -= 1;
+    reasons.push("premium_to_oracle");
+  }
+
+  let setupQuality = "skip";
+  if (score >= 6) setupQuality = "tradeable";
+  else if (score >= 3) setupQuality = "watch";
+
+  let sideBias = "neutral";
+  if ((snapshot.funding || 0) < 0 && (snapshot.premium || 0) <= 0) sideBias = "long-bias";
+  if ((snapshot.funding || 0) > 0 && (snapshot.premium || 0) >= 0) sideBias = "short-bias";
+
+  return { score, setupQuality, sideBias, reasons };
 }
 
 function writeLifecycleJournal(kind, payload) {
@@ -52,6 +83,42 @@ function writeLifecycleJournal(kind, payload) {
     kind,
     payload,
   });
+}
+
+function extractTradeLessons(trades) {
+  const closed = trades.filter((trade) => trade.status === "closed");
+  if (!closed.length) {
+    return ["No closed trades yet. Collect more execution history before tuning hard rules."];
+  }
+
+  const positive = closed.filter((trade) => (trade.realizedPnlPct || 0) > 0);
+  const negative = closed.filter((trade) => (trade.realizedPnlPct || 0) < 0);
+  const lessons = [];
+
+  if (positive.length) {
+    const best = positive.sort((a, b) => (b.realizedPnlPct || 0) - (a.realizedPnlPct || 0))[0];
+    lessons.push(`Best recent trade: ${best.symbol} ${best.side} closed at ${best.realizedPnlPct}% with thesis: ${best.thesis || "n/a"}.`);
+  }
+
+  if (negative.length) {
+    const worst = negative.sort((a, b) => (a.realizedPnlPct || 0) - (b.realizedPnlPct || 0))[0];
+    lessons.push(`Worst recent trade: ${worst.symbol} ${worst.side} closed at ${worst.realizedPnlPct}% with reason: ${worst.closeReason || "n/a"}.`);
+  }
+
+  const groupedBySymbol = Object.values(closed.reduce((acc, trade) => {
+    if (!acc[trade.symbol]) acc[trade.symbol] = { symbol: trade.symbol, count: 0, pnl: 0 };
+    acc[trade.symbol].count += 1;
+    acc[trade.symbol].pnl += trade.realizedPnlPct || 0;
+    return acc;
+  }, {}));
+
+  groupedBySymbol
+    .filter((item) => item.count >= 2)
+    .forEach((item) => {
+      lessons.push(`Symbol review: ${item.symbol} average closed PnL ${(item.pnl / item.count).toFixed(2)}% over ${item.count} trades.`);
+    });
+
+  return lessons;
 }
 
 const toolMap = {
@@ -88,25 +155,18 @@ const toolMap = {
   async rank_trade_setups({ symbols } = {}) {
     const context = await toolMap.get_market_context({ symbols });
     const candidates = context.symbols.map((snapshot) => {
-      const score = scoreSnapshot(snapshot);
-      let verdict = "skip";
-      let sideBias = "neutral";
-
-      if (score >= 5) verdict = "tradeable";
-      else if (score >= 3) verdict = "watch";
-
-      if ((snapshot.funding || 0) < 0) sideBias = "long-bias";
-      if ((snapshot.funding || 0) > 0) sideBias = "short-bias";
-
+      const scored = scoreSnapshot(snapshot);
       return {
         symbol: snapshot.symbol,
-        verdict,
-        sideBias,
-        score,
+        verdict: scored.setupQuality,
+        sideBias: scored.sideBias,
+        score: scored.score,
+        reasons: scored.reasons,
         funding: snapshot.funding,
         openInterest: snapshot.openInterest,
         dayNtlVlm: snapshot.dayNtlVlm,
-        note: "Initial heuristic score from Hyperliquid context. Replace with richer strategy logic next.",
+        premium: snapshot.premium,
+        note: "Initial heuristic score from Hyperliquid context. Replace with richer structure logic next.",
       };
     }).sort((a, b) => b.score - a.score);
 
@@ -121,13 +181,14 @@ const toolMap = {
   async propose_trade({ symbol, side }) {
     const context = await toolMap.get_market_context({ symbols: [symbol] });
     const snapshot = context.symbols[0] || null;
+    const scored = scoreSnapshot(snapshot);
 
     return {
       symbol,
       side,
       mode: process.env.DRY_RUN === "true" ? "dry-run" : "live",
       thesis: snapshot
-        ? `Funding=${snapshot.funding}, OI=${snapshot.openInterest}, 24h volume=${snapshot.dayNtlVlm}.`
+        ? `Funding=${snapshot.funding}, OI=${snapshot.openInterest}, 24h volume=${snapshot.dayNtlVlm}, premium=${snapshot.premium}. Bias=${scored.sideBias}.`
         : "No market snapshot found.",
       invalidation: `Default stop at ${config.execution.stopLossPct}% until richer structure logic is implemented.`,
       takeProfit: config.execution.takeProfitPct,
@@ -135,6 +196,7 @@ const toolMap = {
       trailingStop: config.execution.trailingStopPct,
       sizeUsd: config.execution.defaultPositionSizeUsd,
       snapshot,
+      scored,
     };
   },
 
@@ -206,6 +268,7 @@ const toolMap = {
         openTrades: open.length,
         closedTrades: closed.length,
         avgClosedPnlPct: avgClosedPnl,
+        extracted: extractTradeLessons(trades),
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",

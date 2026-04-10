@@ -67,7 +67,7 @@ cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {
 });
 
 console.log("\nHelix ReAct scaffold is live.");
-console.log("Commands: /status, /watch, /review, /paper-long <symbol>, /stop\n");
+console.log("Commands: /status, /watch, /review, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -117,6 +117,18 @@ rl.on("line", async (line) => {
       const symbol = input.replace("/paper-long ", "").trim().toUpperCase();
       const result = await agentLoop(
         `Create a trade plan for ${symbol}, then place a dry-run long order using the plan and summarize what was recorded.`,
+        config.llm.maxSteps,
+        [],
+        "TRADER",
+        config.llm.traderModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else if (input.startsWith("/paper-short ")) {
+      const symbol = input.replace("/paper-short ", "").trim().toUpperCase();
+      const result = await agentLoop(
+        `Create a trade plan for ${symbol}, then place a dry-run short order using the plan and summarize what was recorded.`,
         config.llm.maxSteps,
         [],
         "TRADER",
