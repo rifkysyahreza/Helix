@@ -7,6 +7,7 @@ import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrade
 import { openPerpPosition, closePerpPosition } from "../execution.js";
 import { syncTradesWithExchange } from "../sync.js";
 import { getNormalizedAccountState } from "../account-state.js";
+import { buildPerformanceProfile, getPerformanceProfileSummary } from "../performance-profile.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -392,7 +393,8 @@ const toolMap = {
       review: closeReview.review,
       reason: trade.closeReason || null,
     });
-    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview });
+    const profile = buildPerformanceProfile();
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview, profile });
     return {
       closed: true,
       trade,
@@ -421,6 +423,7 @@ const toolMap = {
     const sync = await syncTradesWithExchange(limit).catch(() => null);
     const notes = readJournal(limit);
     const trades = listRecentTrades(limit);
+    const perfProfile = getPerformanceProfileSummary();
     const closed = trades.filter((trade) => trade.status === "closed");
     const open = trades.filter((trade) => trade.status === "open");
     const avgClosedPnl = closed.length
@@ -437,6 +440,8 @@ const toolMap = {
         closedTrades: closed.length,
         avgClosedPnlPct: avgClosedPnl,
         extracted: extractTradeLessons(trades),
+        adaptiveProfile: perfProfile.profile,
+        adaptiveSummary: perfProfile.summaryLines,
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",

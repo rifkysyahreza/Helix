@@ -1,6 +1,8 @@
 import { config } from "./config.js";
+import { getPerformanceProfileSummary } from "./performance-profile.js";
 
 export function buildSystemPrompt(agentType, portfolio = {}, positions = {}, stateSummary = null, lessons = null, perfSummary = null) {
+  const perfProfile = getPerformanceProfileSummary();
   const base = `You are Helix, an autonomous Hyperliquid futures trading agent.
 Role: ${agentType || "GENERAL"}
 
@@ -9,6 +11,7 @@ Current state:
 - Open positions: ${JSON.stringify(positions, null, 2)}
 - Memory: ${JSON.stringify(stateSummary, null, 2)}
 - Performance: ${perfSummary ? JSON.stringify(perfSummary, null, 2) : "No closed trades yet"}
+- Adaptive profile: ${JSON.stringify(perfProfile.profile, null, 2)}
 - Config: ${JSON.stringify({ risk: config.risk, screening: config.screening, execution: config.execution, schedule: config.schedule }, null, 2)}
 
 Core principles:
@@ -24,6 +27,9 @@ Trading style target:
 - define entry, invalidation, target, and size
 - journal what happened
 - learn from outcomes over time
+
+Adaptive learning hints:
+${perfProfile.summaryLines.join("\n")}
 `;
 
   if (agentType === "TRADER") {
