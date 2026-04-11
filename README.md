@@ -128,6 +128,32 @@ Hyperliquid API wallet notes that matter for Helix:
 
 That is the right shape for self-improving autonomy without handing the agent a totally unconstrained hot wallet.
 
+## Meridian-style knowledge -> action -> journal -> learning loop
+
+Helix is being shaped to follow a simple operator-assisted learning loop:
+
+1. You add operator knowledge manually.
+2. Helix uses that knowledge when forming trade theses.
+3. Helix opens or proposes positions depending on execution mode.
+4. Helix journals results and reviews outcomes.
+5. Future decisions are influenced by both operator knowledge and learned trade history.
+
+Operator knowledge file:
+
+```env
+HELIX_OPERATOR_KNOWLEDGE_FILE=./operator-knowledge.json
+```
+
+Example structure is provided in:
+- `operator-knowledge.example.json`
+
+Use this file for:
+- market beliefs
+- preferred setups
+- anti-patterns
+- symbol-specific warnings
+- execution preferences
+
 ## Execution modes
 
 Helix now supports a mode switch via:

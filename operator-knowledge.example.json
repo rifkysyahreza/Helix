@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "notes": [
+    {
+      "title": "Prefer momentum continuation only with healthy liquidity",
+      "body": "Avoid forcing longs on weak liquidity or noisy chop. Prefer continuation when volume and structure align.",
+      "tags": ["bias", "momentum", "liquidity"]
+    },
+    {
+      "title": "Be cautious with symbols that repeatedly fail after entry",
+      "body": "If a symbol repeatedly stops out or fails to trend after entry, reduce confidence and size until fresh evidence improves.",
+      "tags": ["risk", "adaptation", "symbol"]
+    }
+  ]
+}

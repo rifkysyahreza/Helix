@@ -10,6 +10,7 @@ import { getNormalizedAccountState } from "../account-state.js";
 import { buildPerformanceProfile, getPerformanceProfileSummary } from "../performance-profile.js";
 import { buildYesterdayLearningReport } from "../daily-report.js";
 import { addPendingIntent, listPendingIntents, resolvePendingIntent } from "../pending-intents.js";
+import { loadOperatorKnowledge, summarizeOperatorKnowledge } from "../operator-knowledge.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -317,6 +318,8 @@ const toolMap = {
     const snapshot = context.symbols[0] || null;
     const scored = scoreSnapshot(snapshot);
 
+    const operatorKnowledge = summarizeOperatorKnowledge(3);
+
     return {
       symbol,
       side,
@@ -324,6 +327,7 @@ const toolMap = {
       thesis: snapshot
         ? `Funding=${snapshot.funding}, OI=${snapshot.openInterest}, 24h volume=${snapshot.dayNtlVlm}, premium=${snapshot.premium}. Bias=${scored.sideBias}.`
         : "No market snapshot found.",
+      operatorKnowledge,
       invalidation: `Default stop at ${config.execution.stopLossPct}% until richer structure logic is implemented.`,
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,
@@ -431,6 +435,10 @@ const toolMap = {
       execution,
       matchingPosition,
     };
+  },
+
+  async get_operator_knowledge() {
+    return loadOperatorKnowledge();
   },
 
   async manage_open_positions() {
@@ -553,6 +561,7 @@ const toolMap = {
         extracted: extractTradeLessons(trades),
         adaptiveProfile: perfProfile.profile,
         adaptiveSummary: perfProfile.summaryLines,
+        operatorKnowledge: summarizeOperatorKnowledge(5),
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",

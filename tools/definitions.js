@@ -114,6 +114,17 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_operator_knowledge",
+      description: "Load manually provided operator knowledge notes that Helix should use when forming theses and learning biases.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "manage_open_positions",
       description: "Evaluate current normalized live positions and suggest or execute hold/reduce/close actions depending on execution mode and current account state.",
       parameters: {
