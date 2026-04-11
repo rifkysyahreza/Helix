@@ -20,6 +20,14 @@ export function buildYesterdayLearningReport() {
   const lines = [];
   lines.push(`Yesterday closed trades: ${closedYesterday.length}`);
 
+  const wins = closedYesterday.filter((trade) => (trade.realizedPnlPct || 0) > 0).length;
+  const losses = closedYesterday.filter((trade) => (trade.realizedPnlPct || 0) < 0).length;
+  const avg = closedYesterday.length
+    ? closedYesterday.reduce((sum, trade) => sum + (trade.realizedPnlPct || 0), 0) / closedYesterday.length
+    : null;
+
+  lines.push(`Wins: ${wins} | Losses: ${losses} | Avg PnL: ${avg != null ? avg.toFixed(2) : "n/a"}%`);
+
   for (const trade of closedYesterday) {
     lines.push(`${trade.symbol} ${trade.side} -> ${trade.realizedPnlPct ?? "n/a"}% (${trade.closeReason || "no reason"})`);
   }

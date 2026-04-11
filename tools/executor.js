@@ -13,6 +13,7 @@ import { addPendingIntent, listPendingIntents, resolvePendingIntent } from "../p
 import { loadOperatorKnowledge, summarizeOperatorKnowledge } from "../operator-knowledge.js";
 import { buildTradeThesis } from "../thesis-builder.js";
 import { updateBeliefsFromClosedTrade, getLearnedBeliefs } from "../belief-updater.js";
+import { canEmitAction, markActionEmitted } from "../action-guard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -492,12 +493,24 @@ const toolMap = {
         };
       }
 
+      const actionKey = `${position.coin}:${suggestedAction}`;
+
+      if (intent && !canEmitAction(actionKey)) {
+        execution = {
+          suppressed: true,
+          note: `Suppressed duplicate action for ${actionKey} during cooldown window.`,
+        };
+        intent = null;
+      }
+
       if (config.execution.mode === "approval" && intent) {
         const pending = addPendingIntent({ source: "manage_open_positions", coin: position.coin, side: position.side, intent, reason });
+        markActionEmitted(actionKey);
         execution = { requiresApproval: true, intent, pending };
       }
 
       if (config.execution.mode === "autonomous" && intent) {
+        markActionEmitted(actionKey);
         execution = {
           attempted: false,
           note: "Autonomous manager execution for reduce/close is not fully implemented yet. Intent generated and held.",
