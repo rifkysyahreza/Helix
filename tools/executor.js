@@ -439,13 +439,43 @@ const toolMap = {
     for (const position of account.positions || []) {
       let suggestedAction = "hold";
       let reason = "No risk trigger hit.";
+      let intent = null;
+      let executed = false;
+      let execution = null;
 
       if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
         suggestedAction = "close";
         reason = `ROE ${position.returnOnEquity}% breached stop threshold.`;
+        intent = {
+          type: "close_position",
+          symbol: position.coin,
+          side: position.side,
+          reduceOnly: true,
+          size: Math.abs(position.szi || 0),
+        };
       } else if ((position.returnOnEquity || 0) >= config.execution.takeProfitPct) {
         suggestedAction = "reduce";
         reason = `ROE ${position.returnOnEquity}% reached take-profit threshold.`;
+        intent = {
+          type: "reduce_position",
+          symbol: position.coin,
+          side: position.side,
+          reduceOnly: true,
+          reducePct: 50,
+          size: Math.abs(position.szi || 0) * 0.5,
+        };
+      }
+
+      if (config.execution.mode === "approval" && intent) {
+        execution = { requiresApproval: true, intent };
+      }
+
+      if (config.execution.mode === "autonomous" && intent) {
+        execution = {
+          attempted: false,
+          note: "Autonomous manager execution for reduce/close is not fully implemented yet. Intent generated and held.",
+          intent,
+        };
       }
 
       actions.push({
@@ -455,6 +485,9 @@ const toolMap = {
         leverage: position.leverage,
         suggestedAction,
         reason,
+        intent,
+        executed,
+        execution,
       });
     }
 
