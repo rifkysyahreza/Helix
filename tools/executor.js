@@ -15,6 +15,7 @@ import { buildTradeThesis } from "../thesis-builder.js";
 import { updateBeliefsFromClosedTrade, getLearnedBeliefs } from "../belief-updater.js";
 import { canEmitAction, markActionEmitted } from "../action-guard.js";
 import { replayApprovedIntent } from "../execution-replay.js";
+import { summarizeExecutionResult } from "../execution-result.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -404,13 +405,15 @@ const toolMap = {
       return execution;
     }
 
+    const verification = summarizeExecutionResult(execution?.execution?.result);
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
-    writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition });
+    writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition, verification });
     return {
       reduced: true,
       trade,
       execution,
       matchingPosition,
+      verification,
     };
   },
 
@@ -429,8 +432,9 @@ const toolMap = {
     if (!execution.success) {
       return execution;
     }
+    const verification = summarizeExecutionResult(execution?.execution?.result);
     if (execution?.execution?.result) {
-      updateTradeExchange(tradeId, { closeResult: execution.execution.result });
+      updateTradeExchange(tradeId, { closeResult: execution.execution.result, closeVerification: verification });
     }
     const trade = closeTradeRecord(tradeId, {
       reason,
@@ -452,12 +456,13 @@ const toolMap = {
       reason: trade.closeReason || null,
     });
     const profile = buildPerformanceProfile();
-    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview, profile, learnedBeliefs });
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview, profile, learnedBeliefs, verification });
     return {
       closed: true,
       trade,
       execution,
       matchingPosition,
+      verification,
     };
   },
 
@@ -523,7 +528,7 @@ const toolMap = {
       }
 
       if (config.execution.mode === "approval" && intent) {
-        const pending = addPendingIntent({ source: "manage_open_positions", coin: position.coin, side: position.side, intent, reason });
+        const pending = addPendingIntent({ source: "manage_open_positions", coin: position.coin, side: position.side, intent, reason, beliefContext: learnedBelief });
         markActionEmitted(actionKey);
         execution = { requiresApproval: true, intent, pending };
       }

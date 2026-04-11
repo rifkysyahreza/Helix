@@ -1,6 +1,7 @@
 import { getNormalizedAccountState } from "./account-state.js";
 import { openPerpPosition, closePerpPosition, reducePerpPosition } from "./execution.js";
 import { listRecentTrades } from "./state.js";
+import { summarizeExecutionResult } from "./execution-result.js";
 
 function findOpenTradeBySymbol(symbol) {
   return listRecentTrades(500).find((trade) => trade.symbol === symbol && trade.status === "open") || null;
@@ -15,13 +16,17 @@ export async function replayApprovedIntent(intent) {
   const livePosition = account?.positions?.find((position) => position.coin === intent.intent.symbol) || null;
 
   if (intent.intent.type === "reduce_position") {
-    return await reducePerpPosition({
+    const replay = await reducePerpPosition({
       symbol: intent.intent.symbol,
       side: intent.intent.side,
       reducePct: intent.intent.reducePct,
       size: intent.intent.size,
       livePosition,
     });
+    return {
+      ...replay,
+      verification: summarizeExecutionResult(replay?.execution?.result),
+    };
   }
 
   if (intent.intent.type === "close_position") {
@@ -29,11 +34,19 @@ export async function replayApprovedIntent(intent) {
     if (!trade) {
       return { success: false, error: `No open tracked trade found for ${intent.intent.symbol}.` };
     }
-    return await closePerpPosition({ trade, livePosition });
+    const replay = await closePerpPosition({ trade, livePosition });
+    return {
+      ...replay,
+      verification: summarizeExecutionResult(replay?.execution?.result),
+    };
   }
 
   if (intent.intent.type === "open_position") {
-    return await openPerpPosition(intent.intent);
+    const replay = await openPerpPosition(intent.intent);
+    return {
+      ...replay,
+      verification: summarizeExecutionResult(replay?.execution?.result),
+    };
   }
 
   return { success: false, error: `Unsupported intent type: ${intent.intent.type}` };
