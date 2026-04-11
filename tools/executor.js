@@ -641,7 +641,15 @@ const toolMap = {
   },
 
   async list_pending_intents() {
-    return { intents: listPendingIntents() };
+    const intents = listPendingIntents();
+    return {
+      intents,
+      summary: {
+        pending: intents.filter((item) => item.status === "pending").length,
+        approved: intents.filter((item) => item.status === "approved").length,
+        rejected: intents.filter((item) => item.status === "rejected").length,
+      },
+    };
   },
 
   async resolve_pending_intent({ id, decision }) {
@@ -697,6 +705,13 @@ const toolMap = {
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
     const reconciliation = await reconcileExecutionLeftovers(200).catch(() => null);
 
+    const safetyHolds = Array.from(new Map(
+      trades
+        .map((trade) => trade.symbol)
+        .filter(Boolean)
+        .map((symbol) => [symbol, { symbol, hold: getSymbolSafetyHold(symbol) }])
+    ).values()).filter((item) => item.hold?.active);
+
     return {
       count: notes.length,
       notes,
@@ -705,6 +720,7 @@ const toolMap = {
       liveAccount,
       executionSummary,
       reconciliation,
+      safetyHolds,
       lessons: {
         openTrades: open.length,
         closedTrades: closed.length,

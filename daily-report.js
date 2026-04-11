@@ -5,6 +5,7 @@ import { getLearnedBeliefs } from "./belief-updater.js";
 import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
 import { buildCompoundingContext } from "./compounding.js";
 import { getNormalizedAccountState } from "./account-state.js";
+import { getSymbolSafetyHold } from "./safety-state.js";
 
 function isYesterday(isoString) {
   if (!isoString) return false;
@@ -68,6 +69,9 @@ export async function buildYesterdayLearningReport() {
   const executionReliability = buildExecutionReliabilitySummary(300);
   const liveAccount = await getNormalizedAccountState().catch(() => null);
   const compounding = buildCompoundingContext({ limit: 300, account: liveAccount });
+  const safetyHolds = Array.from(new Map(closedYesterday.map((trade) => [trade.symbol, getSymbolSafetyHold(trade.symbol)])).entries())
+    .filter(([, hold]) => hold?.active)
+    .map(([symbol, hold]) => ({ symbol, hold }));
 
   if (executionReliability.worstSymbols.length) {
     lines.push("Weakest execution reliability:");
@@ -78,6 +82,13 @@ export async function buildYesterdayLearningReport() {
 
   lines.push(`Compounding bias: ${compounding.compoundingBias} | size multiplier: ${compounding.sizeMultiplier} | note: ${compounding.note}`);
 
+  if (safetyHolds.length) {
+    lines.push("Active safety holds:");
+    for (const item of safetyHolds) {
+      lines.push(`- ${item.symbol}: ${item.hold.reason || "safety hold active"}`);
+    }
+  }
+
   const report = {
     generatedAt: new Date().toISOString(),
     closedYesterday,
@@ -86,6 +97,7 @@ export async function buildYesterdayLearningReport() {
     weakestBeliefs,
     compounding,
     liveAccount,
+    safetyHolds,
     summaryLines: lines,
   };
 
