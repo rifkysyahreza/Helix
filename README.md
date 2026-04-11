@@ -161,6 +161,22 @@ Helix now also has an explicit thesis-building layer that combines:
 
 That thesis object is used to shape trade proposals more explicitly, instead of relying only on scattered heuristic fields.
 
+## Execution notes
+
+For live reduce and close behavior, Helix now aims to follow documented Hyperliquid exchange semantics:
+- reduce-only orders use `r: true`
+- market-like execution uses aggressive `limit` pricing with `tif: "Ioc"`
+- full closes are modeled as 100% reduce-only orders against the live position
+- `vaultAddress` is used when trading on behalf of the configured account address
+
+Configurable live execution helper:
+
+```env
+HELIX_IOC_SLIPPAGE_BPS=30
+```
+
+This is used to build aggressive IOC pricing from current mids and L2 book context.
+
 ## Execution modes
 
 Helix now supports a mode switch via:
