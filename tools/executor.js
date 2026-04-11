@@ -17,6 +17,7 @@ import { canEmitAction, markActionEmitted } from "../action-guard.js";
 import { replayApprovedIntent } from "../execution-replay.js";
 import { summarizeExecutionResult } from "../execution-result.js";
 import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
+import { buildCompoundingContext } from "../compounding.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -326,6 +327,8 @@ const toolMap = {
 
     const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored });
 
+    const compounding = buildCompoundingContext(200);
+
     return {
       symbol,
       side,
@@ -338,8 +341,9 @@ const toolMap = {
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
-      sizeUsd: Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1)).toFixed(2)),
+      sizeUsd: Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1)).toFixed(2)),
       confidenceAdjustment: builtThesis.confidenceAdjustment,
+      compounding,
       snapshot,
       scored,
     };
@@ -652,6 +656,8 @@ const toolMap = {
       return acc;
     }, {});
 
+    const compounding = buildCompoundingContext(200);
+
     return {
       count: notes.length,
       notes,
@@ -675,6 +681,7 @@ const toolMap = {
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",
         executionQualitySummary: executionSummary,
+        compounding,
       },
       implementationStatus: {
         realReduceOnlyCloseFromLivePosition: false,

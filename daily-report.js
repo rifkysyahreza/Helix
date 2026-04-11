@@ -3,6 +3,7 @@ import { listRecentTrades } from "./state.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
 import { getLearnedBeliefs } from "./belief-updater.js";
 import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
+import { buildCompoundingContext } from "./compounding.js";
 
 function isYesterday(isoString) {
   if (!isoString) return false;
@@ -64,6 +65,7 @@ export function buildYesterdayLearningReport() {
   }
 
   const executionReliability = buildExecutionReliabilitySummary(300);
+  const compounding = buildCompoundingContext(300);
 
   if (executionReliability.worstSymbols.length) {
     lines.push("Weakest execution reliability:");
@@ -72,12 +74,15 @@ export function buildYesterdayLearningReport() {
     }
   }
 
+  lines.push(`Compounding bias: ${compounding.compoundingBias} | size multiplier: ${compounding.sizeMultiplier} | note: ${compounding.note}`);
+
   const report = {
     generatedAt: new Date().toISOString(),
     closedYesterday,
     executionQuality,
     executionReliability,
     weakestBeliefs,
+    compounding,
     summaryLines: lines,
   };
 
