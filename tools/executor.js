@@ -11,6 +11,7 @@ import { buildPerformanceProfile, getPerformanceProfileSummary } from "../perfor
 import { buildYesterdayLearningReport } from "../daily-report.js";
 import { addPendingIntent, listPendingIntents, resolvePendingIntent } from "../pending-intents.js";
 import { loadOperatorKnowledge, summarizeOperatorKnowledge } from "../operator-knowledge.js";
+import { buildTradeThesis } from "../thesis-builder.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -318,16 +319,15 @@ const toolMap = {
     const snapshot = context.symbols[0] || null;
     const scored = scoreSnapshot(snapshot);
 
-    const operatorKnowledge = summarizeOperatorKnowledge(3);
+    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored });
 
     return {
       symbol,
       side,
       mode: process.env.DRY_RUN === "true" ? "dry-run" : "live",
-      thesis: snapshot
-        ? `Funding=${snapshot.funding}, OI=${snapshot.openInterest}, 24h volume=${snapshot.dayNtlVlm}, premium=${snapshot.premium}. Bias=${scored.sideBias}.`
-        : "No market snapshot found.",
-      operatorKnowledge,
+      thesis: builtThesis.thesis,
+      operatorKnowledge: builtThesis.operatorKnowledge,
+      symbolProfile: builtThesis.symbolProfile,
       invalidation: `Default stop at ${config.execution.stopLossPct}% until richer structure logic is implemented.`,
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,

@@ -154,6 +154,13 @@ Use this file for:
 - symbol-specific warnings
 - execution preferences
 
+Helix now also has an explicit thesis-building layer that combines:
+- operator knowledge
+- learned symbol profile / adaptive history
+- current market snapshot
+
+That thesis object is used to shape trade proposals more explicitly, instead of relying only on scattered heuristic fields.
+
 ## Execution modes
 
 Helix now supports a mode switch via:
