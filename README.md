@@ -168,6 +168,7 @@ For live reduce and close behavior, Helix now aims to follow documented Hyperliq
 - market-like execution uses aggressive `limit` pricing with `tif: "Ioc"`
 - full closes are modeled as 100% reduce-only orders against the live position
 - `vaultAddress` is used when trading on behalf of the configured account address
+- autonomous manager actions are additionally gated by safety rails around capital buffer, recent pnl, and execution reliability
 
 Configurable live execution helper:
 

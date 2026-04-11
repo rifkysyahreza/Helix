@@ -19,6 +19,7 @@ import { summarizeExecutionResult } from "../execution-result.js";
 import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
 import { buildCompoundingContext } from "../compounding.js";
 import { buildRiskBudget } from "../risk-budget.js";
+import { evaluateAutonomousSafety } from "../safety-rails.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -577,12 +578,29 @@ const toolMap = {
       }
 
       if (config.execution.mode === "autonomous" && intent) {
-        markActionEmitted(actionKey);
-        execution = {
-          attempted: false,
-          note: "Autonomous manager execution for reduce/close is not fully implemented yet. Intent generated and held.",
-          intent,
-        };
+        const safety = evaluateAutonomousSafety({
+          account,
+          symbol: position.coin,
+          executionReliability,
+        });
+
+        if (!safety.allowAutonomous) {
+          execution = {
+            attempted: false,
+            blocked: true,
+            note: `Autonomous action blocked by safety rails: ${safety.reasons.join(", ")}`,
+            safety,
+            intent,
+          };
+        } else {
+          markActionEmitted(actionKey);
+          execution = {
+            attempted: false,
+            note: "Autonomous manager execution for reduce/close is not fully implemented yet. Intent generated and held.",
+            intent,
+            safety,
+          };
+        }
       }
 
       actions.push({
