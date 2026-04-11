@@ -20,6 +20,7 @@ import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
 import { buildCompoundingContext } from "../compounding.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
+import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -517,8 +518,12 @@ const toolMap = {
       const recentTrade = listRecentTrades(200).find((trade) => trade.symbol === position.coin);
       const recentExecutionOutcome = recentTrade?.executionState?.lastReduceOutcome || recentTrade?.executionState?.lastCloseOutcome || null;
       const executionReliability = buildExecutionReliabilitySummary(300).bySymbol[position.coin] || null;
+      const safetyHold = getSymbolSafetyHold(position.coin);
 
-      if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
+      if (safetyHold?.active) {
+        suggestedAction = "hold";
+        reason = `Safety hold active for ${position.coin}: ${safetyHold.reason || "no reason recorded"}.`;
+      } else if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
         suggestedAction = "close";
         reason = `ROE ${position.returnOnEquity}% breached stop threshold.`;
         intent = {
@@ -585,6 +590,11 @@ const toolMap = {
         });
 
         if (!safety.allowAutonomous) {
+          setSymbolSafetyHold(position.coin, {
+            active: true,
+            reason: safety.reasons.join(", "),
+            safety,
+          });
           execution = {
             attempted: false,
             blocked: true,
@@ -593,6 +603,7 @@ const toolMap = {
             intent,
           };
         } else {
+          clearSymbolSafetyHold(position.coin);
           markActionEmitted(actionKey);
           execution = {
             attempted: false,

@@ -23,6 +23,12 @@ export function addPendingIntent(intent) {
     id,
     createdAt: new Date().toISOString(),
     status: "pending",
+    transitionHistory: [
+      {
+        at: new Date().toISOString(),
+        status: "pending",
+      }
+    ],
     ...intent,
   };
   data.intents.push(entry);
@@ -44,6 +50,8 @@ export function resolvePendingIntent(id, decision, extra = {}) {
   if (!item) return null;
   item.status = decision;
   item.resolvedAt = new Date().toISOString();
+  item.transitionHistory = item.transitionHistory || [];
+  item.transitionHistory.push({ at: item.resolvedAt, status: decision });
   Object.assign(item, extra || {});
   save(data);
   return item;
