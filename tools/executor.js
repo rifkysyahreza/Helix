@@ -21,6 +21,7 @@ import { buildCompoundingContext } from "../compounding.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
+import { reconcileExecutionLeftovers } from "../reconciliation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -649,8 +650,9 @@ const toolMap = {
 
     if (decision === "approved") {
       const replay = await replayApprovedIntent(current);
-      const resolved = resolvePendingIntent(id, decision, { replay });
-      return { resolved, replay };
+      const reconciliation = await reconcileExecutionLeftovers(200).catch(() => null);
+      const resolved = resolvePendingIntent(id, decision, { replay, reconciliation });
+      return { resolved, replay, reconciliation };
     }
 
     const resolved = resolvePendingIntent(id, decision);
@@ -693,6 +695,7 @@ const toolMap = {
 
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
+    const reconciliation = await reconcileExecutionLeftovers(200).catch(() => null);
 
     return {
       count: notes.length,
@@ -701,6 +704,7 @@ const toolMap = {
       sync,
       liveAccount,
       executionSummary,
+      reconciliation,
       lessons: {
         openTrades: open.length,
         closedTrades: closed.length,
