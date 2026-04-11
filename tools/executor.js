@@ -109,15 +109,70 @@ function writeLifecycleJournal(kind, payload) {
   });
 }
 
+function classifyOutcome(realizedPnlPct) {
+  if (realizedPnlPct == null) return "unknown";
+  if (realizedPnlPct >= 5) return "big_profit";
+  if (realizedPnlPct > 0) return "small_profit";
+  if (realizedPnlPct <= -5) return "big_loss";
+  if (realizedPnlPct < 0) return "small_loss";
+  return "flat";
+}
+
+function buildCloseReview(trade, matchingPosition = null) {
+  const outcome = classifyOutcome(trade.realizedPnlPct);
+  const why = [];
+
+  if (trade.realizedPnlPct == null) {
+    why.push("Missing realized PnL input.");
+  } else if (trade.realizedPnlPct < 0) {
+    why.push(`Trade closed at a loss (${trade.realizedPnlPct}%). Evaluate thesis quality, entry timing, and whether funding/book context turned against the trade.`);
+  } else if (trade.realizedPnlPct > 0) {
+    why.push(`Trade closed in profit (${trade.realizedPnlPct}%). Evaluate whether the thesis was correct, whether exits were efficient, and whether size should be repeated or scaled.`);
+  }
+
+  if (trade.closeReason) {
+    why.push(`Close reason: ${trade.closeReason}.`);
+  }
+
+  if (matchingPosition?.liquidationPx != null) {
+    why.push(`Live position context before close had liquidation price ${matchingPosition.liquidationPx}.`);
+  }
+
+  return {
+    outcome,
+    review: why.join(" "),
+  };
+}
+
 function extractTradeLessons(trades) {
   const closed = trades.filter((trade) => trade.status === "closed");
   if (!closed.length) {
     return ["No closed trades yet. Collect more execution history before tuning hard rules."];
   }
 
+  const buckets = {
+    big_profit: [],
+    small_profit: [],
+    small_loss: [],
+    big_loss: [],
+    flat: [],
+    unknown: [],
+  };
+
+  for (const trade of closed) {
+    buckets[classifyOutcome(trade.realizedPnlPct)].push(trade);
+  }
+
+  const lessons = [];
+
+  for (const [bucket, items] of Object.entries(buckets)) {
+    if (!items.length || ["flat", "unknown"].includes(bucket)) continue;
+    const avg = items.reduce((sum, trade) => sum + (trade.realizedPnlPct || 0), 0) / items.length;
+    lessons.push(`Outcome bucket ${bucket}: ${items.length} trade(s), average PnL ${avg.toFixed(2)}%.`);
+  }
+
   const positive = closed.filter((trade) => (trade.realizedPnlPct || 0) > 0);
   const negative = closed.filter((trade) => (trade.realizedPnlPct || 0) < 0);
-  const lessons = [];
 
   if (positive.length) {
     const best = positive.sort((a, b) => (b.realizedPnlPct || 0) - (a.realizedPnlPct || 0))[0];
@@ -325,7 +380,19 @@ const toolMap = {
       realizedPnlPct,
       exchange: execution?.execution?.result ? { closeResult: execution.execution.result } : null,
     });
-    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition });
+    const closeReview = buildCloseReview(trade, matchingPosition);
+    appendJournal({
+      timestamp: new Date().toISOString(),
+      type: "close_review",
+      tradeId,
+      symbol: trade.symbol,
+      side: trade.side,
+      realizedPnlPct: trade.realizedPnlPct,
+      outcome: closeReview.outcome,
+      review: closeReview.review,
+      reason: trade.closeReason || null,
+    });
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview });
     return {
       closed: true,
       trade,
