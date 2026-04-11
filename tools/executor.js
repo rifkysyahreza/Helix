@@ -39,6 +39,30 @@ function defaultSymbols() {
   return config.screening.allowedSymbols?.length ? config.screening.allowedSymbols : ["BTC", "ETH", "SOL"];
 }
 
+function getSymbolProfileBias(symbol) {
+  const perfProfile = getPerformanceProfileSummary().profile;
+  const stats = perfProfile?.bySymbol?.[symbol];
+  if (!stats || stats.count < 2) {
+    return { scoreBias: 0, sizeBias: 1, reasons: [] };
+  }
+
+  const reasons = [];
+  let scoreBias = 0;
+  let sizeBias = 1;
+
+  if (stats.avgPnlPct >= 3) {
+    scoreBias += 1;
+    sizeBias = 1.1;
+    reasons.push("symbol_profile_positive");
+  } else if (stats.avgPnlPct <= -3) {
+    scoreBias -= 1;
+    sizeBias = 0.85;
+    reasons.push("symbol_profile_negative");
+  }
+
+  return { scoreBias, sizeBias, reasons };
+}
+
 function scoreSnapshot(snapshot, extras = {}) {
   let score = 0;
   if (!snapshot) return { score, setupQuality: "skip", sideBias: "neutral", reasons: ["missing_snapshot"] };
@@ -88,6 +112,10 @@ function scoreSnapshot(snapshot, extras = {}) {
     reasons.push("ask_book_pressure");
   }
 
+  const symbolBias = getSymbolProfileBias(snapshot.symbol);
+  score += symbolBias.scoreBias;
+  reasons.push(...symbolBias.reasons);
+
   let setupQuality = "skip";
   if (score >= 6) setupQuality = "tradeable";
   else if (score >= 3) setupQuality = "watch";
@@ -98,7 +126,7 @@ function scoreSnapshot(snapshot, extras = {}) {
   if (extras.bookImbalance != null && extras.bookImbalance > 0.1) sideBias = "long-bias";
   if (extras.bookImbalance != null && extras.bookImbalance < -0.1) sideBias = "short-bias";
 
-  return { score, setupQuality, sideBias, reasons };
+  return { score, setupQuality, sideBias, reasons, symbolBias };
 }
 
 function writeLifecycleJournal(kind, payload) {
@@ -298,7 +326,7 @@ const toolMap = {
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
-      sizeUsd: config.execution.defaultPositionSizeUsd,
+      sizeUsd: Number((config.execution.defaultPositionSizeUsd * (scored.symbolBias?.sizeBias || 1)).toFixed(2)),
       snapshot,
       scored,
     };
@@ -445,6 +473,12 @@ const toolMap = {
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",
+      },
+      implementationStatus: {
+        realReduceOnlyCloseFromLivePosition: false,
+        symbolAssetMappingForLiveClose: true,
+        managementPromptUsesActualLivePositions: true,
+        strongerLessonsFromRealizedPnlAndExchangeState: true,
       },
     };
   },
