@@ -1,6 +1,6 @@
 import { listRecentTrades } from "./state.js";
 
-export function buildCompoundingContext(limit = 200) {
+export function buildCompoundingContext({ limit = 200, account = null } = {}) {
   const trades = listRecentTrades(limit).filter((trade) => trade.status === "closed");
   const closedWithPnl = trades.filter((trade) => typeof trade.realizedPnlPct === "number");
 
@@ -31,6 +31,20 @@ export function buildCompoundingContext(limit = 200) {
     }
   }
 
+  const withdrawable = account?.withdrawable != null ? Number(account.withdrawable) : null;
+  const accountValue = account?.marginSummary?.accountValue != null ? Number(account.marginSummary.accountValue) : null;
+  const accountBuffer = withdrawable ?? accountValue ?? null;
+
+  if (accountBuffer != null) {
+    if (accountBuffer < 100) {
+      compoundingBias = "capital_preservation";
+      sizeMultiplier = Math.min(sizeMultiplier, 0.75);
+      note = "Account buffer is thin, so Helix should protect capital and keep size tight.";
+    } else if (accountBuffer > 1000 && avgPnlPct != null && avgPnlPct > 0) {
+      sizeMultiplier = Math.max(sizeMultiplier, 1.05);
+    }
+  }
+
   return {
     avgSizeUsd,
     avgPnlPct,
@@ -39,5 +53,8 @@ export function buildCompoundingContext(limit = 200) {
     compoundingBias,
     sizeMultiplier,
     note,
+    accountBuffer,
+    withdrawable,
+    accountValue,
   };
 }

@@ -327,7 +327,8 @@ const toolMap = {
 
     const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored });
 
-    const compounding = buildCompoundingContext(200);
+    const liveAccount = await getNormalizedAccountState().catch(() => null);
+    const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
 
     return {
       symbol,
@@ -656,13 +657,15 @@ const toolMap = {
       return acc;
     }, {});
 
-    const compounding = buildCompoundingContext(200);
+    const liveAccount = await getNormalizedAccountState().catch(() => null);
+    const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
 
     return {
       count: notes.length,
       notes,
       recentTrades: trades,
       sync,
+      liveAccount,
       executionSummary,
       lessons: {
         openTrades: open.length,

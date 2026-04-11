@@ -4,6 +4,7 @@ import { getPerformanceProfileSummary } from "./performance-profile.js";
 import { getLearnedBeliefs } from "./belief-updater.js";
 import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
 import { buildCompoundingContext } from "./compounding.js";
+import { getNormalizedAccountState } from "./account-state.js";
 
 function isYesterday(isoString) {
   if (!isoString) return false;
@@ -16,7 +17,7 @@ function isYesterday(isoString) {
     && d.getUTCDate() === y.getUTCDate();
 }
 
-export function buildYesterdayLearningReport() {
+export async function buildYesterdayLearningReport() {
   const closedYesterday = listRecentTrades(500).filter((trade) => trade.status === "closed" && isYesterday(trade.closedAt));
   const perf = getPerformanceProfileSummary();
 
@@ -65,7 +66,8 @@ export function buildYesterdayLearningReport() {
   }
 
   const executionReliability = buildExecutionReliabilitySummary(300);
-  const compounding = buildCompoundingContext(300);
+  const liveAccount = await getNormalizedAccountState().catch(() => null);
+  const compounding = buildCompoundingContext({ limit: 300, account: liveAccount });
 
   if (executionReliability.worstSymbols.length) {
     lines.push("Weakest execution reliability:");
@@ -83,6 +85,7 @@ export function buildYesterdayLearningReport() {
     executionReliability,
     weakestBeliefs,
     compounding,
+    liveAccount,
     summaryLines: lines,
   };
 
