@@ -22,7 +22,7 @@ function makeTradeId(symbol) {
   return `${symbol}-${Date.now()}`;
 }
 
-export function createTradeRecord({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct, snapshot }) {
+export function createTradeRecord({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct, snapshot, exchange = null }) {
   const state = load();
   const tradeId = makeTradeId(symbol);
   state.trades[tradeId] = {
@@ -34,6 +34,7 @@ export function createTradeRecord({ symbol, side, sizeUsd, thesis, stopLossPct, 
     stopLossPct,
     takeProfitPct,
     snapshot,
+    exchange,
     status: "open",
     reductions: [],
     createdAt: new Date().toISOString(),
@@ -57,7 +58,7 @@ export function reduceTradeRecord(tradeId, { reducePct, reason }) {
   return trade;
 }
 
-export function closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct }) {
+export function closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct, exchange = null }) {
   const state = load();
   const trade = state.trades[tradeId];
   if (!trade) return null;
@@ -65,7 +66,18 @@ export function closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct })
   trade.closeReason = reason || null;
   trade.exitPrice = exitPrice ?? null;
   trade.realizedPnlPct = realizedPnlPct ?? null;
+  if (exchange) trade.exchange = { ...(trade.exchange || {}), ...exchange };
   trade.closedAt = new Date().toISOString();
+  trade.updatedAt = new Date().toISOString();
+  save(state);
+  return trade;
+}
+
+export function updateTradeExchange(tradeId, exchangePatch) {
+  const state = load();
+  const trade = state.trades[tradeId];
+  if (!trade) return null;
+  trade.exchange = { ...(trade.exchange || {}), ...(exchangePatch || {}) };
   trade.updatedAt = new Date().toISOString();
   save(state);
   return trade;

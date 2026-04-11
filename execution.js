@@ -93,13 +93,26 @@ export async function closePerpPosition({ trade }) {
   }
 
   if (context.mode === "live") {
+    const readiness = getLiveExecutionReadiness();
+    if (!readiness.ready) {
+      return {
+        success: false,
+        blocked: true,
+        risk,
+        context: { ...context, readiness },
+        execution: {
+          note: "Live execution not ready.",
+        },
+      };
+    }
+
     return {
       success: false,
       blocked: true,
       risk,
-      context: { ...context, readiness: getLiveExecutionReadiness() },
+      context: { ...context, readiness },
       execution: {
-        note: "Live close is not fully implemented yet. Need order-id-based reduce/cancel/close reconciliation path.",
+        note: "Live close still needs a proper reduce-only order strategy tied to real position/account state. Not shipping a fake close path.",
       },
     };
   }

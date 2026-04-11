@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "../config.js";
 import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, buildSymbolSnapshot } from "./hyperliquid.js";
-import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades } from "../state.js";
+import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange } from "../state.js";
 import { openPerpPosition, closePerpPosition } from "../execution.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -208,10 +208,22 @@ const toolMap = {
       side,
       sizeUsd: sizeUsd ?? proposal.sizeUsd,
       leverage,
+      asset: proposal.snapshot?.assetIndex,
+      price: proposal.snapshot?.markPx || proposal.snapshot?.midPx || 1,
+      size: sizeUsd ?? proposal.sizeUsd,
+      tif: "Ioc",
     });
     if (!execution.success) {
       return execution;
     }
+    const liveStatuses = execution?.execution?.result?.response?.data?.statuses || [];
+    const firstStatus = liveStatuses[0] || null;
+    const exchangeMeta = firstStatus?.resting
+      ? { oid: firstStatus.resting.oid, cloid: firstStatus.resting.cloid || null, status: "resting" }
+      : firstStatus?.filled
+        ? { oid: firstStatus.filled.oid, cloid: firstStatus.filled.cloid || null, status: "filled", avgPx: firstStatus.filled.avgPx }
+        : null;
+
     const trade = createTradeRecord({
       symbol,
       side,
@@ -220,6 +232,7 @@ const toolMap = {
       stopLossPct: stopLossPct ?? proposal.stopLoss,
       takeProfitPct: takeProfitPct ?? proposal.takeProfit,
       snapshot: proposal.snapshot,
+      exchange: exchangeMeta,
     });
     writeLifecycleJournal("place_order", { trade, execution });
     return {
@@ -237,6 +250,7 @@ const toolMap = {
     return {
       reduced: true,
       trade,
+      note: "Reduce lifecycle recorded. Live reduce execution still needs real position-size aware exchange flow.",
     };
   },
 
@@ -248,7 +262,15 @@ const toolMap = {
     if (!execution.success) {
       return execution;
     }
-    const trade = closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct });
+    if (execution?.execution?.result) {
+      updateTradeExchange(tradeId, { closeResult: execution.execution.result });
+    }
+    const trade = closeTradeRecord(tradeId, {
+      reason,
+      exitPrice,
+      realizedPnlPct,
+      exchange: execution?.execution?.result ? { closeResult: execution.execution.result } : null,
+    });
     writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution });
     return {
       closed: true,
