@@ -18,6 +18,7 @@ import { replayApprovedIntent } from "../execution-replay.js";
 import { summarizeExecutionResult } from "../execution-result.js";
 import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
 import { buildCompoundingContext } from "../compounding.js";
+import { buildRiskBudget } from "../risk-budget.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -329,6 +330,8 @@ const toolMap = {
 
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
+    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1)).toFixed(2));
+    const riskBudget = buildRiskBudget({ account: liveAccount, proposedSizeUsd });
 
     return {
       symbol,
@@ -342,9 +345,11 @@ const toolMap = {
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
-      sizeUsd: Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1)).toFixed(2)),
+      sizeUsd: riskBudget.cappedSizeUsd ?? proposedSizeUsd,
+      proposedSizeUsd,
       confidenceAdjustment: builtThesis.confidenceAdjustment,
       compounding,
+      riskBudget,
       snapshot,
       scored,
     };
