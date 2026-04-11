@@ -22,6 +22,7 @@ import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
 import { reconcileExecutionLeftovers } from "../reconciliation.js";
+import { buildGoLiveCheck } from "../go-live-check.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -665,6 +666,10 @@ const toolMap = {
 
     const resolved = resolvePendingIntent(id, decision);
     return { resolved };
+  },
+
+  async build_go_live_check() {
+    return await buildGoLiveCheck();
   },
 
   async build_yesterday_report() {

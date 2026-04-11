@@ -178,6 +178,17 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "build_go_live_check",
+      description: "Evaluate whether Helix looks ready for cautious tiny-size autonomous testing, or whether it should remain in approval mode.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "build_yesterday_report",
       description: "Build a learning report from positions closed yesterday, including pnl outcomes and adaptive summary lines.",
       parameters: {

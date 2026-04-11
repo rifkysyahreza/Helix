@@ -178,6 +178,23 @@ HELIX_IOC_SLIPPAGE_BPS=30
 
 This is used to build aggressive IOC pricing from current mids and L2 book context.
 
+## Tiny-size go-live path
+
+Before moving Helix beyond approval mode, run a go-live check and confirm that:
+- account state is present
+- withdrawable buffer is not thin
+- compounding logic is not in capital-preservation mode
+- execution reliability is not materially degraded
+
+Helix now exposes a go-live readiness check intended to recommend either:
+- `approval`
+- `autonomous-tiny`
+
+The intended cautious path is:
+1. `paper`
+2. `approval`
+3. tiny-size autonomous testing only after the go-live check looks clean
+
 ## Execution modes
 
 Helix now supports a mode switch via:
