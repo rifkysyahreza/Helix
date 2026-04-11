@@ -56,6 +56,9 @@ export function buildYesterdayLearningReport() {
 
   if (Object.keys(executionQuality).length) {
     lines.push(`Execution quality: ${Object.entries(executionQuality).map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+    if (executionQuality.ioc_cancel || executionQuality.error) {
+      lines.push("Execution warning: repeated IOC cancels or execution errors need closer review before increasing automation.");
+    }
   }
 
   const report = {

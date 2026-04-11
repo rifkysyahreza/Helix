@@ -36,6 +36,18 @@ export function summarizeExecutionResult(result) {
   const filled = statuses.filter((item) => item.kind === "filled");
   const resting = statuses.filter((item) => item.kind === "resting");
   const errors = statuses.filter((item) => item.kind === "error");
+  const totalFilledSize = filled.reduce((sum, item) => sum + (item.totalSz || 0), 0);
+  const avgFillPx = filled.length
+    ? filled.reduce((sum, item) => sum + ((item.avgPx || 0) * (item.totalSz || 0)), 0) / Math.max(1, totalFilledSize)
+    : null;
+
+  let executionLabel = "unknown";
+  const lowerErrors = errors.map((item) => String(item.error || "").toLowerCase());
+  if (filled.length > 0 && (resting.length > 0 || errors.length > 0)) executionLabel = "partial_fill";
+  else if (filled.length > 0) executionLabel = "filled";
+  else if (resting.length > 0) executionLabel = "resting";
+  else if (lowerErrors.some((msg) => msg.includes("could not immediately match") || msg.includes("ioccancel"))) executionLabel = "ioc_cancel";
+  else if (errors.length > 0) executionLabel = "error";
 
   return {
     statuses,
@@ -45,9 +57,8 @@ export function summarizeExecutionResult(result) {
     successLike: filled.length > 0 || resting.length > 0,
     hasErrors: errors.length > 0,
     errorMessages: errors.map((item) => item.error),
-    totalFilledSize: filled.reduce((sum, item) => sum + (item.totalSz || 0), 0),
-    avgFillPx: filled.length
-      ? filled.reduce((sum, item) => sum + ((item.avgPx || 0) * (item.totalSz || 0)), 0) / Math.max(1, filled.reduce((sum, item) => sum + (item.totalSz || 0), 0))
-      : null,
+    totalFilledSize,
+    avgFillPx,
+    executionLabel,
   };
 }

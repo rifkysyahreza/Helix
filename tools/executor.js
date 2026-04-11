@@ -409,7 +409,7 @@ const toolMap = {
     updateTradeExecutionState(tradeId, {
       lastReduceVerification: verification,
       lastReduceAt: new Date().toISOString(),
-      lastReduceOutcome: verification.hasErrors ? "error" : verification.filledCount > 0 ? "filled" : verification.restingCount > 0 ? "resting" : "unknown",
+      lastReduceOutcome: verification.executionLabel,
     });
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
     writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition, verification });
@@ -444,7 +444,7 @@ const toolMap = {
     updateTradeExecutionState(tradeId, {
       lastCloseVerification: verification,
       lastCloseAt: new Date().toISOString(),
-      lastCloseOutcome: verification.hasErrors ? "error" : verification.filledCount > 0 ? "filled" : verification.restingCount > 0 ? "resting" : "unknown",
+      lastCloseOutcome: verification.executionLabel,
     });
     const trade = closeTradeRecord(tradeId, {
       reason,
@@ -492,6 +492,8 @@ const toolMap = {
       let execution = null;
 
       const learnedBelief = getLearnedBeliefs()?.symbols?.[position.coin] || null;
+      const recentTrade = listRecentTrades(200).find((trade) => trade.symbol === position.coin);
+      const recentExecutionOutcome = recentTrade?.executionState?.lastReduceOutcome || recentTrade?.executionState?.lastCloseOutcome || null;
 
       if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
         suggestedAction = "close";
@@ -514,6 +516,9 @@ const toolMap = {
           reducePct: 50,
           size: Math.abs(position.szi || 0) * 0.5,
         };
+      } else if (["ioc_cancel", "error"].includes(recentExecutionOutcome)) {
+        suggestedAction = "hold";
+        reason = `Recent execution quality for ${position.coin} was weak (${recentExecutionOutcome}), so Helix is avoiding another immediate action.`;
       } else if (learnedBelief && (learnedBelief.avgPnlPct || 0) <= -4 && (learnedBelief.losses || 0) >= 2) {
         suggestedAction = "reduce";
         reason = `Belief layer is weak for ${position.coin}: avg pnl ${learnedBelief.avgPnlPct} with ${learnedBelief.losses} losses.`;
