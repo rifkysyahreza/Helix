@@ -141,6 +141,32 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "list_pending_intents",
+      description: "List manager-generated pending action intents waiting for approval or rejection.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "resolve_pending_intent",
+      description: "Approve or reject a pending manager-generated action intent by id.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          decision: { type: "string", enum: ["approved", "rejected"] }
+        },
+        required: ["id", "decision"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "build_yesterday_report",
       description: "Build a learning report from positions closed yesterday, including pnl outcomes and adaptive summary lines.",
       parameters: {

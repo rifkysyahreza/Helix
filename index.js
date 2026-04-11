@@ -85,7 +85,7 @@ cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
 });
 
 console.log("\nHelix ReAct scaffold is live.");
-console.log("Commands: /status, /watch, /manage, /review, /sync, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("Commands: /status, /watch, /manage, /pending, /review, /sync, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -138,6 +138,17 @@ rl.on("line", async (line) => {
         [],
         "TRADER",
         config.llm.traderModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else if (input === "/pending") {
+      const result = await agentLoop(
+        "List current pending Helix approval intents and summarize the most urgent ones.",
+        config.llm.maxSteps,
+        [],
+        "REVIEWER",
+        config.llm.reviewerModel,
         null,
         { requireTool: true },
       );

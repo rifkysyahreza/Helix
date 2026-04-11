@@ -9,6 +9,7 @@ import { syncTradesWithExchange } from "../sync.js";
 import { getNormalizedAccountState } from "../account-state.js";
 import { buildPerformanceProfile, getPerformanceProfileSummary } from "../performance-profile.js";
 import { buildYesterdayLearningReport } from "../daily-report.js";
+import { addPendingIntent, listPendingIntents, resolvePendingIntent } from "../pending-intents.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -467,7 +468,8 @@ const toolMap = {
       }
 
       if (config.execution.mode === "approval" && intent) {
-        execution = { requiresApproval: true, intent };
+        const pending = addPendingIntent({ source: "manage_open_positions", coin: position.coin, side: position.side, intent, reason });
+        execution = { requiresApproval: true, intent, pending };
       }
 
       if (config.execution.mode === "autonomous" && intent) {
@@ -501,6 +503,15 @@ const toolMap = {
 
   async sync_exchange_state({ limit = 50 } = {}) {
     return await syncTradesWithExchange(limit);
+  },
+
+  async list_pending_intents() {
+    return { intents: listPendingIntents() };
+  },
+
+  async resolve_pending_intent({ id, decision }) {
+    const resolved = resolvePendingIntent(id, decision);
+    return resolved ? { resolved } : { error: `Pending intent not found: ${id}` };
   },
 
   async build_yesterday_report() {
