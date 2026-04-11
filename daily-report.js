@@ -2,6 +2,7 @@ import fs from "fs";
 import { listRecentTrades } from "./state.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
 import { getLearnedBeliefs } from "./belief-updater.js";
+import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
 
 function isYesterday(isoString) {
   if (!isoString) return false;
@@ -61,10 +62,20 @@ export function buildYesterdayLearningReport() {
     }
   }
 
+  const executionReliability = buildExecutionReliabilitySummary(300);
+
+  if (executionReliability.worstSymbols.length) {
+    lines.push("Weakest execution reliability:");
+    for (const row of executionReliability.worstSymbols.slice(0, 3)) {
+      lines.push(`- ${row.symbol}: score ${row.reliabilityScore}, filled ${row.filled}, partial ${row.partial_fill}, ioc_cancel ${row.ioc_cancel}, error ${row.error}`);
+    }
+  }
+
   const report = {
     generatedAt: new Date().toISOString(),
     closedYesterday,
     executionQuality,
+    executionReliability,
     summaryLines: lines,
   };
 

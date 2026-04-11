@@ -16,6 +16,7 @@ import { updateBeliefsFromClosedTrade, getLearnedBeliefs } from "../belief-updat
 import { canEmitAction, markActionEmitted } from "../action-guard.js";
 import { replayApprovedIntent } from "../execution-replay.js";
 import { summarizeExecutionResult } from "../execution-result.js";
+import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -410,6 +411,8 @@ const toolMap = {
       lastReduceVerification: verification,
       lastReduceAt: new Date().toISOString(),
       lastReduceOutcome: verification.executionLabel,
+      lastReduceFilledSize: verification.totalFilledSize,
+      lastReduceAvgFillPx: verification.avgFillPx,
     });
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
     writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition, verification });
@@ -445,6 +448,8 @@ const toolMap = {
       lastCloseVerification: verification,
       lastCloseAt: new Date().toISOString(),
       lastCloseOutcome: verification.executionLabel,
+      lastCloseFilledSize: verification.totalFilledSize,
+      lastCloseAvgFillPx: verification.avgFillPx,
     });
     const trade = closeTradeRecord(tradeId, {
       reason,
@@ -494,6 +499,7 @@ const toolMap = {
       const learnedBelief = getLearnedBeliefs()?.symbols?.[position.coin] || null;
       const recentTrade = listRecentTrades(200).find((trade) => trade.symbol === position.coin);
       const recentExecutionOutcome = recentTrade?.executionState?.lastReduceOutcome || recentTrade?.executionState?.lastCloseOutcome || null;
+      const executionReliability = buildExecutionReliabilitySummary(300).bySymbol[position.coin] || null;
 
       if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
         suggestedAction = "close";
@@ -516,6 +522,9 @@ const toolMap = {
           reducePct: 50,
           size: Math.abs(position.szi || 0) * 0.5,
         };
+      } else if (executionReliability && executionReliability.total >= 2 && executionReliability.reliabilityScore < -0.25) {
+        suggestedAction = "hold";
+        reason = `Execution reliability for ${position.coin} is poor (${executionReliability.reliabilityScore}), so Helix is throttling action.`;
       } else if (["ioc_cancel", "error"].includes(recentExecutionOutcome)) {
         suggestedAction = "hold";
         reason = `Recent execution quality for ${position.coin} was weak (${recentExecutionOutcome}), so Helix is avoiding another immediate action.`;
