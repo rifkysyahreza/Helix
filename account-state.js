@@ -9,6 +9,7 @@ export async function getNormalizedAccountState() {
     const pos = entry.position || {};
     return {
       coin: pos.coin || null,
+      asset: pos.asset != null ? Number(pos.asset) : null,
       szi: pos.szi != null ? Number(pos.szi) : null,
       entryPx: pos.entryPx != null ? Number(pos.entryPx) : null,
       positionValue: pos.positionValue != null ? Number(pos.positionValue) : null,

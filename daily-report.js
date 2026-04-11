@@ -1,6 +1,7 @@
 import fs from "fs";
 import { listRecentTrades } from "./state.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
+import { getLearnedBeliefs } from "./belief-updater.js";
 
 function isYesterday(isoString) {
   if (!isoString) return false;
@@ -30,6 +31,18 @@ export function buildYesterdayLearningReport() {
 
   for (const trade of closedYesterday) {
     lines.push(`${trade.symbol} ${trade.side} -> ${trade.realizedPnlPct ?? "n/a"}% (${trade.closeReason || "no reason"})`);
+  }
+
+  const weakestBeliefs = Object.entries(getLearnedBeliefs()?.symbols || {})
+    .filter(([, value]) => (value?.avgPnlPct || 0) < 0)
+    .sort((a, b) => (a[1].avgPnlPct || 0) - (b[1].avgPnlPct || 0))
+    .slice(0, 3);
+
+  if (weakestBeliefs.length) {
+    lines.push("Weakest learned symbols:");
+    for (const [symbol, value] of weakestBeliefs) {
+      lines.push(`- ${symbol}: avg ${Number(value.avgPnlPct || 0).toFixed(2)}%, wins ${value.wins || 0}, losses ${value.losses || 0}`);
+    }
   }
 
   lines.push(...perf.summaryLines);

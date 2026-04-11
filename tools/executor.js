@@ -9,11 +9,12 @@ import { syncTradesWithExchange } from "../sync.js";
 import { getNormalizedAccountState } from "../account-state.js";
 import { buildPerformanceProfile, getPerformanceProfileSummary } from "../performance-profile.js";
 import { buildYesterdayLearningReport } from "../daily-report.js";
-import { addPendingIntent, listPendingIntents, resolvePendingIntent } from "../pending-intents.js";
+import { addPendingIntent, listPendingIntents, resolvePendingIntent, getPendingIntent } from "../pending-intents.js";
 import { loadOperatorKnowledge, summarizeOperatorKnowledge } from "../operator-knowledge.js";
 import { buildTradeThesis } from "../thesis-builder.js";
 import { updateBeliefsFromClosedTrade, getLearnedBeliefs } from "../belief-updater.js";
 import { canEmitAction, markActionEmitted } from "../action-guard.js";
+import { replayApprovedIntent } from "../execution-replay.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -385,13 +386,31 @@ const toolMap = {
   },
 
   async reduce_position({ tradeId, reducePct, reason }) {
+    const trades = listRecentTrades(100);
+    const existing = trades.find((trade) => trade.tradeId === tradeId);
+    if (!existing) return { error: `Trade not found: ${tradeId}` };
+
+    const account = await getNormalizedAccountState().catch(() => null);
+    const matchingPosition = account?.positions?.find((position) => position.coin === existing.symbol);
+    const { reducePerpPosition } = await import("../execution.js");
+    const execution = await reducePerpPosition({
+      symbol: existing.symbol,
+      side: existing.side,
+      reducePct,
+      size: matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null,
+      livePosition: matchingPosition || null,
+    });
+    if (!execution.success) {
+      return execution;
+    }
+
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
-    if (!trade) return { error: `Trade not found: ${tradeId}` };
-    writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason });
+    writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition });
     return {
       reduced: true,
       trade,
-      note: "Reduce lifecycle recorded. Live reduce execution still needs real position-size aware exchange flow.",
+      execution,
+      matchingPosition,
     };
   },
 
@@ -548,8 +567,17 @@ const toolMap = {
   },
 
   async resolve_pending_intent({ id, decision }) {
+    const current = getPendingIntent(id);
+    if (!current) return { error: `Pending intent not found: ${id}` };
+
+    if (decision === "approved") {
+      const replay = await replayApprovedIntent(current);
+      const resolved = resolvePendingIntent(id, decision, { replay });
+      return { resolved, replay };
+    }
+
     const resolved = resolvePendingIntent(id, decision);
-    return resolved ? { resolved } : { error: `Pending intent not found: ${id}` };
+    return { resolved };
   },
 
   async build_yesterday_report() {
@@ -593,6 +621,10 @@ const toolMap = {
         adaptiveSummary: perfProfile.summaryLines,
         learnedBeliefs: getLearnedBeliefs(),
         operatorKnowledge: summarizeOperatorKnowledge(5),
+        topBeliefWarnings: Object.entries(getLearnedBeliefs()?.symbols || {})
+          .filter(([, value]) => (value?.avgPnlPct || 0) < 0)
+          .sort((a, b) => (a[1].avgPnlPct || 0) - (b[1].avgPnlPct || 0))
+          .slice(0, 5),
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",
