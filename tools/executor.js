@@ -432,6 +432,40 @@ const toolMap = {
     };
   },
 
+  async manage_open_positions() {
+    const account = await getNormalizedAccountState();
+    const actions = [];
+
+    for (const position of account.positions || []) {
+      let suggestedAction = "hold";
+      let reason = "No risk trigger hit.";
+
+      if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
+        suggestedAction = "close";
+        reason = `ROE ${position.returnOnEquity}% breached stop threshold.`;
+      } else if ((position.returnOnEquity || 0) >= config.execution.takeProfitPct) {
+        suggestedAction = "reduce";
+        reason = `ROE ${position.returnOnEquity}% reached take-profit threshold.`;
+      }
+
+      actions.push({
+        coin: position.coin,
+        side: position.side,
+        returnOnEquity: position.returnOnEquity,
+        leverage: position.leverage,
+        suggestedAction,
+        reason,
+      });
+    }
+
+    return {
+      source: "helix-manager",
+      mode: config.execution.mode,
+      positions: account.positions,
+      actions,
+    };
+  },
+
   async sync_exchange_state({ limit = 50 } = {}) {
     return await syncTradesWithExchange(limit);
   },

@@ -54,6 +54,20 @@ async function runReviewCycle() {
   log("cycle", `Review result: ${(result.content || "").slice(0, 300)}`);
 }
 
+async function runManagementCycle() {
+  log("cron", "Management cycle");
+  const result = await agentLoop(
+    "Evaluate current open Hyperliquid positions, suggest hold/reduce/close actions, and summarize what matters most right now.",
+    config.llm.maxSteps,
+    [],
+    "TRADER",
+    config.llm.traderModel,
+    null,
+    { requireTool: true },
+  );
+  log("cycle", `Management result: ${(result.content || "").slice(0, 300)}`);
+}
+
 cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
   runObserverCycle().catch((error) => log("cron_error", `Observer cycle failed: ${error.message}`));
 });
@@ -66,8 +80,12 @@ cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {
   runReviewCycle().catch((error) => log("cron_error", `Review cycle failed: ${error.message}`));
 });
 
+cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
+  runManagementCycle().catch((error) => log("cron_error", `Management cycle failed: ${error.message}`));
+});
+
 console.log("\nHelix ReAct scaffold is live.");
-console.log("Commands: /status, /watch, /review, /sync, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("Commands: /status, /watch, /manage, /review, /sync, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -109,6 +127,17 @@ rl.on("line", async (line) => {
         [],
         "REVIEWER",
         config.llm.reviewerModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else if (input === "/manage") {
+      const result = await agentLoop(
+        "Evaluate current open Hyperliquid positions, suggest hold/reduce/close actions, and summarize what matters most right now.",
+        config.llm.maxSteps,
+        [],
+        "TRADER",
+        config.llm.traderModel,
         null,
         { requireTool: true },
       );

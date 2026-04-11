@@ -114,6 +114,17 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "manage_open_positions",
+      description: "Evaluate current normalized live positions and suggest or execute hold/reduce/close actions depending on execution mode and current account state.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "sync_exchange_state",
       description: "Sync Helix trade records against real Hyperliquid exchange/account state using SDK info methods like openOrders and userFills.",
       parameters: {

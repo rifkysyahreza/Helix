@@ -128,6 +128,39 @@ Hyperliquid API wallet notes that matter for Helix:
 
 That is the right shape for self-improving autonomy without handing the agent a totally unconstrained hot wallet.
 
+## Execution modes
+
+Helix now supports a mode switch via:
+
+```env
+HELIX_EXECUTION_MODE=paper
+```
+
+### `dry-run`
+- safest mode
+- no live execution
+- useful for architecture and loop testing
+- actions are simulated
+
+### `paper`
+- paper-trading style mode
+- Helix records intended trades and lifecycle state
+- useful for evaluating decision quality without live execution
+
+### `approval`
+- Helix generates exact action intent for open/close operations
+- does not execute automatically
+- useful when you want Helix to think and prepare actions, but keep final approval yourself
+
+### `autonomous`
+- Helix is allowed to execute supported live actions automatically
+- intended target mode for a truly autonomous futures agent
+- should only be used after the exchange/account/risk path is battle-tested
+
+Important note:
+- open execution path is further along than close/reduce execution
+- autonomous close/reduce is still not fully finished yet
+
 Recommended OpenClaw config for now:
 
 ```env
