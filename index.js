@@ -67,7 +67,7 @@ cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {
 });
 
 console.log("\nHelix ReAct scaffold is live.");
-console.log("Commands: /status, /watch, /review, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("Commands: /status, /watch, /review, /sync, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -105,6 +105,17 @@ rl.on("line", async (line) => {
     } else if (input === "/review") {
       const result = await agentLoop(
         "Review recent Helix journal notes and summarize lessons.",
+        config.llm.maxSteps,
+        [],
+        "REVIEWER",
+        config.llm.reviewerModel,
+        null,
+        { requireTool: true },
+      );
+      console.log(result.content || "No response.");
+    } else if (input === "/sync") {
+      const result = await agentLoop(
+        "Sync Helix trade records with real Hyperliquid exchange state and summarize what changed.",
         config.llm.maxSteps,
         [],
         "REVIEWER",

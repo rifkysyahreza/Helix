@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, buildSymbolSnapshot } from "./hyperliquid.js";
 import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange } from "../state.js";
 import { openPerpPosition, closePerpPosition } from "../execution.js";
+import { syncTradesWithExchange } from "../sync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -279,6 +280,10 @@ const toolMap = {
     };
   },
 
+  async sync_exchange_state({ limit = 50 } = {}) {
+    return await syncTradesWithExchange(limit);
+  },
+
   async journal_trade_note({ title, body, tags = [] }) {
     const entry = {
       timestamp: new Date().toISOString(),
@@ -292,6 +297,7 @@ const toolMap = {
   },
 
   async review_recent_journal({ limit = 10 } = {}) {
+    const sync = await syncTradesWithExchange(limit).catch(() => null);
     const notes = readJournal(limit);
     const trades = listRecentTrades(limit);
     const closed = trades.filter((trade) => trade.status === "closed");
@@ -304,6 +310,7 @@ const toolMap = {
       count: notes.length,
       notes,
       recentTrades: trades,
+      sync,
       lessons: {
         openTrades: open.length,
         closedTrades: closed.length,

@@ -114,6 +114,22 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "sync_exchange_state",
+      description: "Sync Helix trade records against real Hyperliquid exchange/account state using SDK info methods like openOrders and userFills.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "How many recent trades to sync. Default 50."
+          }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "journal_trade_note",
       description: "Write a structured trade or review note into Helix memory for journaling and later self-review.",
       parameters: {
