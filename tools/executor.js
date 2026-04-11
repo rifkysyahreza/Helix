@@ -329,11 +329,13 @@ const toolMap = {
       thesis: builtThesis.thesis,
       operatorKnowledge: builtThesis.operatorKnowledge,
       symbolProfile: builtThesis.symbolProfile,
+      learnedSymbolBelief: builtThesis.learnedSymbolBelief,
       invalidation: `Default stop at ${config.execution.stopLossPct}% until richer structure logic is implemented.`,
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
-      sizeUsd: Number((config.execution.defaultPositionSizeUsd * (scored.symbolBias?.sizeBias || 1)).toFixed(2)),
+      sizeUsd: Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1)).toFixed(2)),
+      confidenceAdjustment: builtThesis.confidenceAdjustment,
       snapshot,
       scored,
     };
@@ -454,6 +456,8 @@ const toolMap = {
       let executed = false;
       let execution = null;
 
+      const learnedBelief = getLearnedBeliefs()?.symbols?.[position.coin] || null;
+
       if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
         suggestedAction = "close";
         reason = `ROE ${position.returnOnEquity}% breached stop threshold.`;
@@ -474,6 +478,17 @@ const toolMap = {
           reduceOnly: true,
           reducePct: 50,
           size: Math.abs(position.szi || 0) * 0.5,
+        };
+      } else if (learnedBelief && (learnedBelief.avgPnlPct || 0) <= -4 && (learnedBelief.losses || 0) >= 2) {
+        suggestedAction = "reduce";
+        reason = `Belief layer is weak for ${position.coin}: avg pnl ${learnedBelief.avgPnlPct} with ${learnedBelief.losses} losses.`;
+        intent = {
+          type: "reduce_position",
+          symbol: position.coin,
+          side: position.side,
+          reduceOnly: true,
+          reducePct: 25,
+          size: Math.abs(position.szi || 0) * 0.25,
         };
       }
 

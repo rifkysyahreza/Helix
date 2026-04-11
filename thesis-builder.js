@@ -36,6 +36,19 @@ export function buildTradeThesis({ symbol, side, snapshot, scored }) {
     thesisParts.push(`belief_losses=${learnedSymbolBelief.losses}`);
   }
 
+  let suggestedSizeBias = scored?.symbolBias?.sizeBias || 1;
+  let confidenceAdjustment = 0;
+
+  if (learnedSymbolBelief) {
+    if ((learnedSymbolBelief.avgPnlPct || 0) >= 3 && (learnedSymbolBelief.wins || 0) > (learnedSymbolBelief.losses || 0)) {
+      suggestedSizeBias *= 1.1;
+      confidenceAdjustment += 1;
+    } else if ((learnedSymbolBelief.avgPnlPct || 0) <= -3 && (learnedSymbolBelief.losses || 0) >= (learnedSymbolBelief.wins || 0)) {
+      suggestedSizeBias *= 0.8;
+      confidenceAdjustment -= 1;
+    }
+  }
+
   return {
     symbol,
     side,
@@ -45,5 +58,7 @@ export function buildTradeThesis({ symbol, side, snapshot, scored }) {
     learnedSymbolBelief,
     scored,
     snapshot,
+    suggestedSizeBias,
+    confidenceAdjustment,
   };
 }
