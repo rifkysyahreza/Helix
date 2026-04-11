@@ -12,6 +12,7 @@ import { buildYesterdayLearningReport } from "../daily-report.js";
 import { addPendingIntent, listPendingIntents, resolvePendingIntent } from "../pending-intents.js";
 import { loadOperatorKnowledge, summarizeOperatorKnowledge } from "../operator-knowledge.js";
 import { buildTradeThesis } from "../thesis-builder.js";
+import { updateBeliefsFromClosedTrade, getLearnedBeliefs } from "../belief-updater.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -416,6 +417,7 @@ const toolMap = {
       exchange: execution?.execution?.result ? { closeResult: execution.execution.result } : null,
     });
     const closeReview = buildCloseReview(trade, matchingPosition);
+    const learnedBeliefs = updateBeliefsFromClosedTrade(trade);
     appendJournal({
       timestamp: new Date().toISOString(),
       type: "close_review",
@@ -428,7 +430,7 @@ const toolMap = {
       reason: trade.closeReason || null,
     });
     const profile = buildPerformanceProfile();
-    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview, profile });
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition, closeReview, profile, learnedBeliefs });
     return {
       closed: true,
       trade,
@@ -561,6 +563,7 @@ const toolMap = {
         extracted: extractTradeLessons(trades),
         adaptiveProfile: perfProfile.profile,
         adaptiveSummary: perfProfile.summaryLines,
+        learnedBeliefs: getLearnedBeliefs(),
         operatorKnowledge: summarizeOperatorKnowledge(5),
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`

@@ -1,10 +1,13 @@
 import { summarizeOperatorKnowledge } from "./operator-knowledge.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
+import { getLearnedBeliefs } from "./belief-updater.js";
 
 export function buildTradeThesis({ symbol, side, snapshot, scored }) {
   const operatorKnowledge = summarizeOperatorKnowledge(5);
   const perfProfile = getPerformanceProfileSummary().profile;
   const symbolProfile = perfProfile?.bySymbol?.[symbol] || null;
+  const learnedBeliefs = getLearnedBeliefs();
+  const learnedSymbolBelief = learnedBeliefs?.symbols?.[symbol] || null;
 
   const thesisParts = [];
 
@@ -27,12 +30,19 @@ export function buildTradeThesis({ symbol, side, snapshot, scored }) {
     thesisParts.push(`operator_notes=${operatorKnowledge.map((note) => note.title).join(" | ")}`);
   }
 
+  if (learnedSymbolBelief) {
+    thesisParts.push(`belief_avg_pnl=${learnedSymbolBelief.avgPnlPct}`);
+    thesisParts.push(`belief_wins=${learnedSymbolBelief.wins}`);
+    thesisParts.push(`belief_losses=${learnedSymbolBelief.losses}`);
+  }
+
   return {
     symbol,
     side,
     thesis: thesisParts.join(", "),
     operatorKnowledge,
     symbolProfile,
+    learnedSymbolBelief,
     scored,
     snapshot,
   };
