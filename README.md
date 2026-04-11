@@ -42,7 +42,7 @@ Still to build next:
 
 Phase 7 note:
 - Helix now has nonce generation and live-submit intent scaffolding
-- final live order signing is still intentionally gated until dependencies are installed and the exact protocol payload is verified
+- that custom scaffolding is being superseded by the `@nktkas/hyperliquid` SDK for real exchange access
 
 ---
 
@@ -96,6 +96,18 @@ Helix keeps Meridian's runtime support, including:
 - OpenAI-compatible providers
 - OpenClaw local bridge
 - OpenClaw Codex login path
+
+## Hyperliquid integration strategy
+
+Helix now prefers the `@nktkas/hyperliquid` SDK as the primary integration layer for:
+- market info queries
+- exchange order submission
+- wallet-aware signing flow
+
+Rule of thumb for this repo now:
+- use SDK-first whenever it already covers the protocol correctly
+- keep custom Helix code for agent orchestration, risk, journaling, and strategy logic
+- only hand-roll protocol details when the SDK does not cover a needed capability
 
 ## Safer autonomy architecture
 

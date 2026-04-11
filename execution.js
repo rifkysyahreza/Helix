@@ -1,5 +1,6 @@
 import { validateNewPositionRisk, validateCloseRisk } from "./risk.js";
-import { submitLiveOpenOrder, submitLiveCloseOrder, getLiveExecutionReadiness } from "./live-execution.js";
+import { getLiveExecutionReadiness } from "./live-execution.js";
+import { createExchangeClient } from "./hyperliquid-client.js";
 
 function executionMode() {
   if (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true") return "live";
@@ -28,13 +29,39 @@ export async function openPerpPosition(params) {
   }
 
   if (context.mode === "live") {
-    const live = await submitLiveOpenOrder(params);
+    const readiness = getLiveExecutionReadiness();
+    if (!readiness.ready) {
+      return {
+        success: false,
+        blocked: true,
+        risk,
+        context: { ...context, readiness },
+        execution: { note: "Live execution not ready." },
+      };
+    }
+
+    const exchange = createExchangeClient();
+    const result = await exchange.order({
+      orders: [{
+        a: params.asset,
+        b: params.side === "long",
+        p: String(params.price),
+        s: String(params.size),
+        r: false,
+        t: { limit: { tif: params.tif || "Ioc" } },
+      }],
+      grouping: "na",
+    }, process.env.HYPERLIQUID_ACCOUNT_ADDRESS ? { vaultAddress: process.env.HYPERLIQUID_ACCOUNT_ADDRESS } : undefined);
+
     return {
-      success: live.success,
-      blocked: live.blocked || false,
+      success: true,
       risk,
-      context: { ...context, readiness: getLiveExecutionReadiness() },
-      execution: live,
+      context,
+      execution: {
+        mode: context.mode,
+        action: "open_position",
+        result,
+      },
     };
   }
 
@@ -66,13 +93,14 @@ export async function closePerpPosition({ trade }) {
   }
 
   if (context.mode === "live") {
-    const live = await submitLiveCloseOrder({ trade });
     return {
-      success: live.success,
-      blocked: live.blocked || false,
+      success: false,
+      blocked: true,
       risk,
       context: { ...context, readiness: getLiveExecutionReadiness() },
-      execution: live,
+      execution: {
+        note: "Live close is not fully implemented yet. Need order-id-based reduce/cancel/close reconciliation path.",
+      },
     };
   }
 

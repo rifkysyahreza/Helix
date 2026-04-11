@@ -1,36 +1,23 @@
-const API_URL = process.env.HYPERLIQUID_API_URL || "https://api.hyperliquid.xyz/info";
-
-async function postInfo(body) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Hyperliquid API error ${response.status}: ${await response.text()}`);
-  }
-
-  return await response.json();
-}
+import { createInfoClient } from "../hyperliquid-client.js";
 
 export async function fetchMetaAndAssetContexts() {
-  const [meta, assetContexts] = await Promise.all([
-    postInfo({ type: "meta" }),
-    postInfo({ type: "metaAndAssetCtxs" }),
-  ]);
-  return { meta, assetContexts };
+  const info = createInfoClient();
+  const metaAndAssetCtxs = await info.metaAndAssetCtxs();
+  const meta = await info.meta();
+  return { meta, metaAndAssetCtxs };
 }
 
 export async function fetchAllMids() {
-  return await postInfo({ type: "allMids" });
+  const info = createInfoClient();
+  return await info.allMids();
 }
 
 export async function fetchClearingState(user) {
   if (!user) {
     return { missingUser: true, positions: [], marginSummary: null };
   }
-  return await postInfo({ type: "clearinghouseState", user });
+  const info = createInfoClient();
+  return await info.clearinghouseState({ user });
 }
 
 export function buildSymbolSnapshot(symbol, metaAndAssetCtxs, mids) {
@@ -45,6 +32,7 @@ export function buildSymbolSnapshot(symbol, metaAndAssetCtxs, mids) {
 
   return {
     symbol,
+    assetIndex: idx,
     markPx: ctx.markPx ? Number(ctx.markPx) : null,
     oraclePx: ctx.oraclePx ? Number(ctx.oraclePx) : null,
     midPx: mid ? Number(mid) : null,
