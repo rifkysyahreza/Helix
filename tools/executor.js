@@ -6,6 +6,7 @@ import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, fetchCandl
 import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange } from "../state.js";
 import { openPerpPosition, closePerpPosition } from "../execution.js";
 import { syncTradesWithExchange } from "../sync.js";
+import { getNormalizedAccountState } from "../account-state.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -160,18 +161,19 @@ const toolMap = {
   },
 
   async list_account_state() {
-    const user = process.env.HYPERLIQUID_ACCOUNT_ADDRESS || "";
-    const state = await fetchClearingState(user);
+    const normalized = await getNormalizedAccountState();
 
     return {
       source: "hyperliquid",
       dryRun: process.env.DRY_RUN === "true",
-      accountAddress: user || null,
-      missingAccountAddress: !user,
+      accountAddress: normalized.user || null,
+      missingAccountAddress: !normalized.user,
       risk: config.risk,
-      marginSummary: state?.marginSummary || null,
-      positions: state?.assetPositions || [],
-      raw: !user ? null : state,
+      marginSummary: normalized.marginSummary,
+      crossMaintenanceMarginUsed: normalized.crossMaintenanceMarginUsed,
+      withdrawable: normalized.withdrawable,
+      positions: normalized.positions,
+      raw: normalized.raw,
     };
   },
 
@@ -303,7 +305,14 @@ const toolMap = {
     const trades = listRecentTrades(100);
     const existing = trades.find((trade) => trade.tradeId === tradeId);
     if (!existing) return { error: `Trade not found: ${tradeId}` };
-    const execution = await closePerpPosition({ trade: existing });
+
+    const account = await getNormalizedAccountState().catch(() => null);
+    const matchingPosition = account?.positions?.find((position) => position.coin === existing.symbol);
+    if (!matchingPosition && process.env.HELIX_ENABLE_LIVE_EXECUTION === "true") {
+      return { error: `No live position found for symbol ${existing.symbol}. Refusing fake close.` };
+    }
+
+    const execution = await closePerpPosition({ trade: existing, livePosition: matchingPosition || null });
     if (!execution.success) {
       return execution;
     }
@@ -316,11 +325,12 @@ const toolMap = {
       realizedPnlPct,
       exchange: execution?.execution?.result ? { closeResult: execution.execution.result } : null,
     });
-    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution });
+    writeLifecycleJournal("close_position", { tradeId, reason, exitPrice, realizedPnlPct, execution, matchingPosition });
     return {
       closed: true,
       trade,
       execution,
+      matchingPosition,
     };
   },
 

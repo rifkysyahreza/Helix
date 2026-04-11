@@ -80,7 +80,7 @@ export async function openPerpPosition(params) {
   };
 }
 
-export async function closePerpPosition({ trade }) {
+export async function closePerpPosition({ trade, livePosition = null }) {
   const context = buildExecutionContext();
   const risk = validateCloseRisk({ trade });
   if (!risk.ok) {
@@ -112,7 +112,9 @@ export async function closePerpPosition({ trade }) {
       risk,
       context: { ...context, readiness },
       execution: {
-        note: "Live close still needs a proper reduce-only order strategy tied to real position/account state. Not shipping a fake close path.",
+        note: livePosition
+          ? "Live position found, but true reduce-only close order implementation is still pending. Not shipping a fake close path."
+          : "Live close still needs a proper reduce-only order strategy tied to real position/account state. Not shipping a fake close path.",
       },
     };
   }
