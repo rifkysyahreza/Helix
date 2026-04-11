@@ -21,6 +21,7 @@ export function buildYesterdayLearningReport() {
 
   const lines = [];
   lines.push(`Yesterday closed trades: ${closedYesterday.length}`);
+  lines.push("Operator brief:");
 
   const wins = closedYesterday.filter((trade) => (trade.realizedPnlPct || 0) > 0).length;
   const losses = closedYesterday.filter((trade) => (trade.realizedPnlPct || 0) < 0).length;
@@ -76,6 +77,7 @@ export function buildYesterdayLearningReport() {
     closedYesterday,
     executionQuality,
     executionReliability,
+    weakestBeliefs,
     summaryLines: lines,
   };
 

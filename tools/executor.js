@@ -407,12 +407,15 @@ const toolMap = {
     }
 
     const verification = summarizeExecutionResult(execution?.execution?.result);
+    const requestedReduceSize = matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null;
     updateTradeExecutionState(tradeId, {
       lastReduceVerification: verification,
       lastReduceAt: new Date().toISOString(),
       lastReduceOutcome: verification.executionLabel,
       lastReduceFilledSize: verification.totalFilledSize,
       lastReduceAvgFillPx: verification.avgFillPx,
+      lastRequestedReduceSize: requestedReduceSize,
+      remainingReduceSize: requestedReduceSize != null ? Math.max(0, requestedReduceSize - (verification.totalFilledSize || 0)) : null,
     });
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
     writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition, verification });
@@ -444,12 +447,15 @@ const toolMap = {
     if (execution?.execution?.result) {
       updateTradeExchange(tradeId, { closeResult: execution.execution.result, closeVerification: verification });
     }
+    const requestedCloseSize = matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) : null;
     updateTradeExecutionState(tradeId, {
       lastCloseVerification: verification,
       lastCloseAt: new Date().toISOString(),
       lastCloseOutcome: verification.executionLabel,
       lastCloseFilledSize: verification.totalFilledSize,
       lastCloseAvgFillPx: verification.avgFillPx,
+      lastRequestedCloseSize: requestedCloseSize,
+      remainingCloseSize: requestedCloseSize != null ? Math.max(0, requestedCloseSize - (verification.totalFilledSize || 0)) : null,
     });
     const trade = closeTradeRecord(tradeId, {
       reason,
@@ -525,6 +531,9 @@ const toolMap = {
       } else if (executionReliability && executionReliability.total >= 2 && executionReliability.reliabilityScore < -0.25) {
         suggestedAction = "hold";
         reason = `Execution reliability for ${position.coin} is poor (${executionReliability.reliabilityScore}), so Helix is throttling action.`;
+      } else if (executionReliability && executionReliability.total >= 3 && executionReliability.ioc_cancel >= 2) {
+        suggestedAction = "hold";
+        reason = `Recent IOC cancel streak on ${position.coin} suggests poor execution conditions, so Helix is staying patient.`;
       } else if (["ioc_cancel", "error"].includes(recentExecutionOutcome)) {
         suggestedAction = "hold";
         reason = `Recent execution quality for ${position.coin} was weak (${recentExecutionOutcome}), so Helix is avoiding another immediate action.`;
