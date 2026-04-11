@@ -8,6 +8,7 @@ import { openPerpPosition, closePerpPosition } from "../execution.js";
 import { syncTradesWithExchange } from "../sync.js";
 import { getNormalizedAccountState } from "../account-state.js";
 import { buildPerformanceProfile, getPerformanceProfileSummary } from "../performance-profile.js";
+import { buildYesterdayLearningReport } from "../daily-report.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -433,6 +434,10 @@ const toolMap = {
 
   async sync_exchange_state({ limit = 50 } = {}) {
     return await syncTradesWithExchange(limit);
+  },
+
+  async build_yesterday_report() {
+    return buildYesterdayLearningReport();
   },
 
   async journal_trade_note({ title, body, tags = [] }) {

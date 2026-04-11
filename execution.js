@@ -3,8 +3,7 @@ import { getLiveExecutionReadiness } from "./live-execution.js";
 import { createExchangeClient } from "./hyperliquid-client.js";
 
 function executionMode() {
-  if (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true") return "live";
-  return process.env.DRY_RUN === "true" ? "dry-run" : "paper";
+  return process.env.HELIX_EXECUTION_MODE || (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true" ? "autonomous" : (process.env.DRY_RUN === "true" ? "dry-run" : "paper"));
 }
 
 function buildExecutionContext() {
@@ -20,15 +19,28 @@ export async function openPerpPosition(params) {
   const context = buildExecutionContext();
   const risk = validateNewPositionRisk(params);
   if (!risk.ok) {
+    return { success: false, blocked: true, risk, context };
+  }
+
+  if (context.mode === "approval") {
     return {
-      success: false,
-      blocked: true,
+      success: true,
+      requiresApproval: true,
       risk,
       context,
+      execution: {
+        mode: context.mode,
+        action: "open_position",
+        symbol: params.symbol,
+        side: params.side,
+        sizeUsd: params.sizeUsd,
+        leverage: params.leverage,
+        note: "Approval mode: generated exact action intent but did not execute.",
+      },
     };
   }
 
-  if (context.mode === "live") {
+  if (context.mode === "autonomous") {
     const readiness = getLiveExecutionReadiness();
     if (!readiness.ready) {
       return {
@@ -36,7 +48,7 @@ export async function openPerpPosition(params) {
         blocked: true,
         risk,
         context: { ...context, readiness },
-        execution: { note: "Live execution not ready." },
+        execution: { note: "Autonomous live execution not ready." },
       };
     }
 
@@ -84,15 +96,27 @@ export async function closePerpPosition({ trade, livePosition = null }) {
   const context = buildExecutionContext();
   const risk = validateCloseRisk({ trade });
   if (!risk.ok) {
+    return { success: false, blocked: true, risk, context };
+  }
+
+  if (context.mode === "approval") {
     return {
-      success: false,
-      blocked: true,
+      success: true,
+      requiresApproval: true,
       risk,
       context,
+      execution: {
+        mode: context.mode,
+        action: "close_position",
+        tradeId: trade.tradeId,
+        symbol: trade.symbol,
+        side: trade.side,
+        note: "Approval mode: generated exact close intent but did not execute.",
+      },
     };
   }
 
-  if (context.mode === "live") {
+  if (context.mode === "autonomous") {
     const readiness = getLiveExecutionReadiness();
     if (!readiness.ready) {
       return {
@@ -100,9 +124,7 @@ export async function closePerpPosition({ trade, livePosition = null }) {
         blocked: true,
         risk,
         context: { ...context, readiness },
-        execution: {
-          note: "Live execution not ready.",
-        },
+        execution: { note: "Autonomous live execution not ready." },
       };
     }
 
@@ -113,8 +135,8 @@ export async function closePerpPosition({ trade, livePosition = null }) {
       context: { ...context, readiness },
       execution: {
         note: livePosition
-          ? "Live position found, but true reduce-only close order implementation is still pending. Not shipping a fake close path."
-          : "Live close still needs a proper reduce-only order strategy tied to real position/account state. Not shipping a fake close path.",
+          ? "Live position found, but true reduce-only close order implementation is still pending."
+          : "No live position found to close.",
       },
     };
   }

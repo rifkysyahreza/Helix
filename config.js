@@ -50,6 +50,7 @@ export const config = {
 
   execution: {
     dryRun: process.env.DRY_RUN === "true",
+    mode: process.env.HELIX_EXECUTION_MODE || u.executionMode || "paper",
     defaultOrderType: u.defaultOrderType ?? "market",
     defaultPositionSizeUsd: u.defaultPositionSizeUsd ?? 150,
     stopLossPct: u.stopLossPct ?? 1.5,

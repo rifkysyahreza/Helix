@@ -130,6 +130,17 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "build_yesterday_report",
+      description: "Build a learning report from positions closed yesterday, including pnl outcomes and adaptive summary lines.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "journal_trade_note",
       description: "Write a structured trade or review note into Helix memory for journaling and later self-review.",
       parameters: {
