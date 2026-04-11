@@ -20,6 +20,35 @@ export async function fetchClearingState(user) {
   return await info.clearinghouseState({ user });
 }
 
+export async function fetchOrderStatus(user, oid) {
+  const info = createInfoClient();
+  return await info.orderStatus({ user, oid });
+}
+
+export async function fetchHistoricalOrders(user) {
+  const info = createInfoClient();
+  return await info.historicalOrders({ user });
+}
+
+export async function fetchCandles(symbol, interval = "15m", lookbackMs = 6 * 60 * 60 * 1000) {
+  const info = createInfoClient();
+  const endTime = Date.now();
+  const startTime = endTime - lookbackMs;
+  return await info.candleSnapshot({ coin: symbol, interval, startTime, endTime });
+}
+
+export async function fetchFunding(symbol, lookbackMs = 24 * 60 * 60 * 1000) {
+  const info = createInfoClient();
+  const endTime = Date.now();
+  const startTime = endTime - lookbackMs;
+  return await info.fundingHistory({ coin: symbol, startTime, endTime });
+}
+
+export async function fetchL2Book(symbol) {
+  const info = createInfoClient();
+  return await info.l2Book({ coin: symbol, nSigFigs: 4 });
+}
+
 export function buildSymbolSnapshot(symbol, metaAndAssetCtxs, mids) {
   const universe = metaAndAssetCtxs?.[0]?.universe || [];
   const contexts = metaAndAssetCtxs?.[1] || [];

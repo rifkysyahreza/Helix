@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "../config.js";
-import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, buildSymbolSnapshot } from "./hyperliquid.js";
+import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, fetchCandles, fetchFunding, fetchL2Book, buildSymbolSnapshot } from "./hyperliquid.js";
 import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange } from "../state.js";
 import { openPerpPosition, closePerpPosition } from "../execution.js";
 import { syncTradesWithExchange } from "../sync.js";
@@ -37,7 +37,7 @@ function defaultSymbols() {
   return config.screening.allowedSymbols?.length ? config.screening.allowedSymbols : ["BTC", "ETH", "SOL"];
 }
 
-function scoreSnapshot(snapshot) {
+function scoreSnapshot(snapshot, extras = {}) {
   let score = 0;
   if (!snapshot) return { score, setupQuality: "skip", sideBias: "neutral", reasons: ["missing_snapshot"] };
 
@@ -66,6 +66,25 @@ function scoreSnapshot(snapshot) {
     score -= 1;
     reasons.push("premium_to_oracle");
   }
+  if (extras.candleMomentumPct != null && extras.candleMomentumPct > 0) {
+    score += 1;
+    reasons.push("positive_candle_momentum");
+  }
+  if (extras.candleMomentumPct != null && extras.candleMomentumPct < 0) {
+    score -= 1;
+    reasons.push("negative_candle_momentum");
+  }
+  if (extras.fundingTrend != null && extras.fundingTrend < 0) {
+    reasons.push("recent_funding_negative");
+  }
+  if (extras.bookImbalance != null && extras.bookImbalance > 0.1) {
+    score += 1;
+    reasons.push("bid_book_support");
+  }
+  if (extras.bookImbalance != null && extras.bookImbalance < -0.1) {
+    score -= 1;
+    reasons.push("ask_book_pressure");
+  }
 
   let setupQuality = "skip";
   if (score >= 6) setupQuality = "tradeable";
@@ -74,6 +93,8 @@ function scoreSnapshot(snapshot) {
   let sideBias = "neutral";
   if ((snapshot.funding || 0) < 0 && (snapshot.premium || 0) <= 0) sideBias = "long-bias";
   if ((snapshot.funding || 0) > 0 && (snapshot.premium || 0) >= 0) sideBias = "short-bias";
+  if (extras.bookImbalance != null && extras.bookImbalance > 0.1) sideBias = "long-bias";
+  if (extras.bookImbalance != null && extras.bookImbalance < -0.1) sideBias = "short-bias";
 
   return { score, setupQuality, sideBias, reasons };
 }
@@ -156,8 +177,28 @@ const toolMap = {
 
   async rank_trade_setups({ symbols } = {}) {
     const context = await toolMap.get_market_context({ symbols });
-    const candidates = context.symbols.map((snapshot) => {
-      const scored = scoreSnapshot(snapshot);
+    const candidates = await Promise.all(context.symbols.map(async (snapshot) => {
+      const [candles, funding, book] = await Promise.all([
+        fetchCandles(snapshot.symbol, config.screening.timeframe).catch(() => []),
+        fetchFunding(snapshot.symbol).catch(() => []),
+        fetchL2Book(snapshot.symbol).catch(() => null),
+      ]);
+
+      const firstCandle = candles?.[0];
+      const lastCandle = candles?.[candles.length - 1];
+      const candleMomentumPct = firstCandle && lastCandle
+        ? ((Number(lastCandle.c) - Number(firstCandle.o)) / Number(firstCandle.o)) * 100
+        : null;
+      const fundingTrend = Array.isArray(funding) && funding.length
+        ? Number(funding[funding.length - 1].fundingRate)
+        : null;
+      const bids = book?.levels?.[0] || [];
+      const asks = book?.levels?.[1] || [];
+      const bidSz = bids.reduce((sum, level) => sum + Number(level.sz || 0), 0);
+      const askSz = asks.reduce((sum, level) => sum + Number(level.sz || 0), 0);
+      const bookImbalance = (bidSz + askSz) > 0 ? (bidSz - askSz) / (bidSz + askSz) : null;
+
+      const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
       return {
         symbol: snapshot.symbol,
         verdict: scored.setupQuality,
@@ -168,15 +209,18 @@ const toolMap = {
         openInterest: snapshot.openInterest,
         dayNtlVlm: snapshot.dayNtlVlm,
         premium: snapshot.premium,
-        note: "Initial heuristic score from Hyperliquid context. Replace with richer structure logic next.",
+        candleMomentumPct,
+        fundingTrend,
+        bookImbalance,
+        note: "Helix heuristic now includes candles, funding history, and L2 book context via SDK.",
       };
-    }).sort((a, b) => b.score - a.score);
+    }));
 
     return {
       source: "hyperliquid",
       regime: config.screening.regime,
       timeframe: config.screening.timeframe,
-      candidates,
+      candidates: candidates.sort((a, b) => b.score - a.score),
     };
   },
 
