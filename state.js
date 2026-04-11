@@ -83,6 +83,16 @@ export function updateTradeExchange(tradeId, exchangePatch) {
   return trade;
 }
 
+export function updateTradeExecutionState(tradeId, executionStatePatch) {
+  const state = load();
+  const trade = state.trades[tradeId];
+  if (!trade) return null;
+  trade.executionState = { ...(trade.executionState || {}), ...(executionStatePatch || {}) };
+  trade.updatedAt = new Date().toISOString();
+  save(state);
+  return trade;
+}
+
 export function listRecentTrades(limit = 10) {
   const state = load();
   return Object.values(state.trades)

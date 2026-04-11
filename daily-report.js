@@ -47,9 +47,21 @@ export function buildYesterdayLearningReport() {
 
   lines.push(...perf.summaryLines);
 
+  const executionQuality = closedYesterday.reduce((acc, trade) => {
+    const outcome = trade.executionState?.lastCloseOutcome || trade.executionState?.lastReduceOutcome || null;
+    if (!outcome) return acc;
+    acc[outcome] = (acc[outcome] || 0) + 1;
+    return acc;
+  }, {});
+
+  if (Object.keys(executionQuality).length) {
+    lines.push(`Execution quality: ${Object.entries(executionQuality).map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+  }
+
   const report = {
     generatedAt: new Date().toISOString(),
     closedYesterday,
+    executionQuality,
     summaryLines: lines,
   };
 

@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "../config.js";
 import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, fetchCandles, fetchFunding, fetchL2Book, buildSymbolSnapshot } from "./hyperliquid.js";
-import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange } from "../state.js";
+import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange, updateTradeExecutionState } from "../state.js";
 import { openPerpPosition, closePerpPosition } from "../execution.js";
 import { syncTradesWithExchange } from "../sync.js";
 import { getNormalizedAccountState } from "../account-state.js";
@@ -406,6 +406,11 @@ const toolMap = {
     }
 
     const verification = summarizeExecutionResult(execution?.execution?.result);
+    updateTradeExecutionState(tradeId, {
+      lastReduceVerification: verification,
+      lastReduceAt: new Date().toISOString(),
+      lastReduceOutcome: verification.hasErrors ? "error" : verification.filledCount > 0 ? "filled" : verification.restingCount > 0 ? "resting" : "unknown",
+    });
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
     writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition, verification });
     return {
@@ -436,6 +441,11 @@ const toolMap = {
     if (execution?.execution?.result) {
       updateTradeExchange(tradeId, { closeResult: execution.execution.result, closeVerification: verification });
     }
+    updateTradeExecutionState(tradeId, {
+      lastCloseVerification: verification,
+      lastCloseAt: new Date().toISOString(),
+      lastCloseOutcome: verification.hasErrors ? "error" : verification.filledCount > 0 ? "filled" : verification.restingCount > 0 ? "resting" : "unknown",
+    });
     const trade = closeTradeRecord(tradeId, {
       reason,
       exitPrice,
@@ -612,11 +622,19 @@ const toolMap = {
       ? closed.reduce((sum, trade) => sum + (trade.realizedPnlPct || 0), 0) / closed.length
       : null;
 
+    const executionSummary = trades.reduce((acc, trade) => {
+      const outcome = trade.executionState?.lastCloseOutcome || trade.executionState?.lastReduceOutcome || null;
+      if (!outcome) return acc;
+      acc[outcome] = (acc[outcome] || 0) + 1;
+      return acc;
+    }, {});
+
     return {
       count: notes.length,
       notes,
       recentTrades: trades,
       sync,
+      executionSummary,
       lessons: {
         openTrades: open.length,
         closedTrades: closed.length,
@@ -633,6 +651,7 @@ const toolMap = {
         summary: closed.length
           ? `Recent closed trades average ${avgClosedPnl?.toFixed(2)}% PnL across ${closed.length} trades.`
           : "No closed trades yet. Focus on collecting more execution history.",
+        executionQualitySummary: executionSummary,
       },
       implementationStatus: {
         realReduceOnlyCloseFromLivePosition: false,
