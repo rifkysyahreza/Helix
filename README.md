@@ -448,10 +448,26 @@ Do not skip straight to broad autonomous live trading.
 
 ## Important note
 
-This scaffold is intentionally not pretending the Hyperliquid execution layer is finished yet.
+Helix is no longer just a passive scaffold.
+
+It now has meaningful Hyperliquid perp execution architecture, including:
+- live open execution seam
+- live reduce execution seam
+- live reduce-only close seam
+- approval replay into execution
+- execution verification and reconciliation
+- safety rails, safety holds, and go-live checks
+
+That said, Helix should still be treated as a **cautious live-readiness system**, not a fully battle-hardened autonomous production trader.
+
+Current practical status:
+- `paper` mode is usable
+- `approval` mode is usable
+- tiny-size autonomous testing is possible when the go-live check is clean
+- broad unattended live autonomy still deserves caution and continued hardening
 
 Right now the goal is:
 - preserve Meridian's strong base
-- separate Helix as its own sibling repo
-- create the right architecture for futures
-- iterate safely from dry-run to real execution
+- keep Helix as its own sibling repo
+- maintain the right architecture for Hyperliquid perps
+- iterate safely from supervised modes into cautious tiny-size autonomous live use
