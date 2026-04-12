@@ -63,6 +63,18 @@ export function getPendingIntent(id) {
   return listPendingIntents().find((intent) => intent.id === id) || null;
 }
 
+export function markReplayAttempt(id, replayMeta = {}) {
+  const data = load();
+  const item = data.intents.find((intent) => intent.id === id);
+  if (!item) return null;
+  item.replayAttemptedAt = new Date().toISOString();
+  item.replayMeta = { ...(item.replayMeta || {}), ...(replayMeta || {}) };
+  item.transitionHistory = item.transitionHistory || [];
+  item.transitionHistory.push({ at: item.replayAttemptedAt, status: "replay_attempted", replayMeta: item.replayMeta });
+  save(data);
+  return item;
+}
+
 export function resolvePendingIntent(id, decision, extra = {}) {
   const data = load();
   const item = data.intents.find((intent) => intent.id === id);

@@ -27,6 +27,7 @@ import { reconcileExecutionLeftovers } from "../reconciliation.js";
 import { buildGoLiveCheck } from "../go-live-check.js";
 import { evaluateOperatorActionGate, getOperatorControls, haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol } from "../operator-controls.js";
 import { buildHealthSummary } from "../health-summary.js";
+import { startBurnIn, stopBurnIn, summarizeBurnInState } from "../burn-in.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -785,6 +786,38 @@ const toolMap = {
       phases,
       reliability,
       recentIncidents: listExecutionIncidents(Math.min(50, limit)),
+    };
+  },
+
+  async start_burn_in({ mode = "paper", note = null } = {}) {
+    return startBurnIn({ mode, note });
+  },
+
+  async stop_burn_in({ note = null } = {}) {
+    return stopBurnIn({ note });
+  },
+
+  async get_burn_in_status() {
+    return summarizeBurnInState();
+  },
+
+  async run_operator_drill({ symbol = "BTC" } = {}) {
+    const upper = String(symbol || "BTC").toUpperCase();
+    const controlsBefore = getOperatorControls();
+    const suspended = suspendSymbol(upper, "operator_drill");
+    const unsuspended = unsuspendSymbol(upper);
+    return {
+      controlsBefore,
+      haltGate: evaluateOperatorActionGate({ actionType: "place_order", symbol: upper }),
+      suspended,
+      unsuspended,
+      reconciliation: await reconcileExecutionLeftovers(50).catch((error) => ({ error: error.message })),
+      health: await buildHealthSummary({ limit: 50 }).catch((error) => ({ error: error.message })),
+      executionAudit: {
+        reliability: buildExecutionReliabilitySummary(50),
+        recentIncidents: listExecutionIncidents(20),
+      },
+      burnIn: summarizeBurnInState(),
     };
   },
 

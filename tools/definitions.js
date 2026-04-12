@@ -272,6 +272,57 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "start_burn_in",
+      description: "Enable burn-in telemetry mode for paper or approval execution and begin tracking promotion readiness.",
+      parameters: {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["paper", "approval"] },
+          note: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "stop_burn_in",
+      description: "Disable burn-in telemetry mode.",
+      parameters: {
+        type: "object",
+        properties: {
+          note: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_burn_in_status",
+      description: "Return burn-in telemetry state and promotion readiness.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_operator_drill",
+      description: "Run a local operator drill summary over halt, close-only, suspend, reconcile, health, and execution audit surfaces.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "build_go_live_check",
       description: "Evaluate whether Helix looks ready for cautious tiny-size autonomous testing, or whether it should remain in approval mode.",
       parameters: {
