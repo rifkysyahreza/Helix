@@ -5,6 +5,8 @@ import { preflightRuntime } from "./llm/runtime.js";
 import { config } from "./config.js";
 import { log } from "./logger.js";
 import { agentLoop } from "./agent.js";
+import { buildHealthSummary } from "./health-summary.js";
+import { haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol, getOperatorControls } from "./operator-controls.js";
 
 log("startup", "Helix starting...");
 log("startup", `Mode: ${process.env.DRY_RUN === "true" ? "DRY RUN" : "LIVE"}`);
@@ -84,8 +86,8 @@ cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
   runManagementCycle().catch((error) => log("cron_error", `Management cycle failed: ${error.message}`));
 });
 
-console.log("\nHelix ReAct scaffold is live.");
-console.log("Commands: /status, /watch, /manage, /pending, /review, /sync, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("\nHelix runtime is live.");
+console.log("Commands: /status, /health, /watch, /manage, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -107,8 +109,26 @@ rl.on("line", async (line) => {
         runtime: config.llm.runtime,
         model: process.env.LLM_MODEL || process.env.OPENCLAW_MODEL || null,
         dryRun: process.env.DRY_RUN === "true",
+        executionMode: config.execution.mode,
         schedule: config.schedule,
+        operatorControls: getOperatorControls(),
       }, null, 2));
+    } else if (input === "/health") {
+      console.log(JSON.stringify(await buildHealthSummary({ limit: 100 }), null, 2));
+    } else if (input === "/halt") {
+      console.log(JSON.stringify(haltTrading("manual_repl_halt"), null, 2));
+    } else if (input === "/resume") {
+      console.log(JSON.stringify(resumeTrading(), null, 2));
+    } else if (input === "/close-only on") {
+      console.log(JSON.stringify(setCloseOnly(true, "manual_repl_close_only"), null, 2));
+    } else if (input === "/close-only off") {
+      console.log(JSON.stringify(setCloseOnly(false), null, 2));
+    } else if (input.startsWith("/suspend ")) {
+      const symbol = input.replace("/suspend ", "").trim().toUpperCase();
+      console.log(JSON.stringify(suspendSymbol(symbol, "manual_repl_suspend"), null, 2));
+    } else if (input.startsWith("/unsuspend ")) {
+      const symbol = input.replace("/unsuspend ", "").trim().toUpperCase();
+      console.log(JSON.stringify(unsuspendSymbol(symbol), null, 2));
     } else if (input === "/watch") {
       const result = await agentLoop(
         "Check market context and rank current Hyperliquid futures setups worth watching.",

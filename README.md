@@ -379,11 +379,17 @@ HELIX_EXECUTION_MODE=paper
 ### 10. Use Helix interactively
 Useful commands:
 - `/status`
+- `/health`
 - `/watch`
 - `/manage`
 - `/review`
 - `/sync`
 - `/pending`
+- `/halt`
+- `/resume`
+- `/close-only on|off`
+- `/suspend <symbol>`
+- `/unsuspend <symbol>`
 
 What to check first:
 - thesis quality
