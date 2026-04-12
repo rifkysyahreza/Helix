@@ -50,6 +50,7 @@ export function createTradeRecord({ symbol, side, sizeUsd, thesis, stopLossPct, 
     snapshot,
     exchange,
     status: "open",
+    lifecyclePhase: "open_pending",
     reductions: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -77,6 +78,7 @@ export function closeTradeRecord(tradeId, { reason, exitPrice, realizedPnlPct, e
   const trade = state.trades[tradeId];
   if (!trade) return null;
   trade.status = "closed";
+  trade.lifecyclePhase = "closed";
   trade.closeReason = reason || null;
   trade.exitPrice = exitPrice ?? null;
   trade.realizedPnlPct = realizedPnlPct ?? null;

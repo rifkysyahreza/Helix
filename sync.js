@@ -2,6 +2,7 @@ import { createInfoClient } from "./hyperliquid-client.js";
 import { listRecentTrades, updateTradeExchange, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
 import { fetchOrderStatus, fetchHistoricalOrders } from "./tools/hyperliquid.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
+import { deriveExchangePhase } from "./execution-state-machine.js";
 
 function deriveExecutionSnapshot({ order = null, tradeFills = [], historical = null, status = null }) {
   const fillCount = Array.isArray(tradeFills) ? tradeFills.length : 0;
@@ -82,11 +83,26 @@ export async function syncTradesWithExchange(limit = 50) {
       historicalStatus: executionSnapshot.historicalStatus,
     });
 
+    const nextLifecyclePhase = deriveExchangePhase({
+      exchangeState: executionSnapshot.exchangeState,
+      tradeStatus: trade.status,
+      hasOpenOrder: executionSnapshot.hasOpenOrder,
+      remainingCloseSize: trade.executionState?.remainingCloseSize,
+      remainingReduceSize: trade.executionState?.remainingReduceSize,
+      lastIntentAction: trade.executionState?.lastIntentAction || null,
+    });
+
     if (trade.status === "open" && ["filled", "partially_filled", "cancelled"].includes(executionSnapshot.exchangeState) && !executionSnapshot.hasOpenOrder) {
       updateTradeLifecycle(trade.tradeId, {
         lastExchangeState: executionSnapshot.exchangeState,
+        lifecyclePhase: nextLifecyclePhase,
       });
-      recordExecutionIncident({ kind: "sync_exchange_terminal_state", tradeId: trade.tradeId, symbol: trade.symbol, exchangeState: executionSnapshot.exchangeState });
+      recordExecutionIncident({ kind: "sync_exchange_terminal_state", tradeId: trade.tradeId, symbol: trade.symbol, exchangeState: executionSnapshot.exchangeState, lifecyclePhase: nextLifecyclePhase });
+    } else if (nextLifecyclePhase !== "unknown") {
+      updateTradeLifecycle(trade.tradeId, {
+        lastExchangeState: executionSnapshot.exchangeState,
+        lifecyclePhase: nextLifecyclePhase,
+      });
     }
 
     synced += 1;

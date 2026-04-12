@@ -58,6 +58,7 @@ export async function reconcileExecutionLeftovers(limit = 200) {
     if (shouldMarkTradeFlat(trade, position)) {
       updateTradeLifecycle(trade.tradeId, {
         status: "closed",
+        lifecyclePhase: "closed",
         closeReason: trade.closeReason || "reconciled_flat",
         closedAt: trade.closedAt || new Date().toISOString(),
         lastExchangeState: "reconciled_flat",

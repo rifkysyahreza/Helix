@@ -16,6 +16,7 @@ import { updateBeliefsFromClosedTrade, getLearnedBeliefs } from "../belief-updat
 import { canEmitAction, markActionEmitted } from "../action-guard.js";
 import { replayApprovedIntent } from "../execution-replay.js";
 import { summarizeExecutionResult } from "../execution-result.js";
+import { inferExecutionPhase, deriveExchangePhase } from "../execution-state-machine.js";
 import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
 import { buildCompoundingContext } from "../compounding.js";
 import { buildRiskBudget } from "../risk-budget.js";
@@ -394,6 +395,8 @@ const toolMap = {
         ? { oid: firstStatus.filled.oid, cloid: firstStatus.filled.cloid || null, status: "filled", avgPx: firstStatus.filled.avgPx }
         : null;
 
+    const verification = summarizeExecutionResult(execution?.execution?.result);
+    const requestedOpenSize = Number(sizeUsd ?? proposal.sizeUsd ?? 0) || null;
     const trade = createTradeRecord({
       symbol,
       side,
@@ -403,6 +406,24 @@ const toolMap = {
       takeProfitPct: takeProfitPct ?? proposal.takeProfit,
       snapshot: proposal.snapshot,
       exchange: exchangeMeta,
+    });
+    updateTradeExecutionState(trade.tradeId, {
+      lastIntentAction: "open",
+      lastOpenVerification: verification,
+      lastOpenAt: new Date().toISOString(),
+      lastOpenOutcome: verification.executionLabel,
+      lastRequestedOpenSize: requestedOpenSize,
+      remainingOpenSize: requestedOpenSize != null ? Math.max(0, requestedOpenSize - (verification.totalFilledSize || 0)) : null,
+    });
+    updateTradeLifecycle(trade.tradeId, {
+      lifecyclePhase: inferExecutionPhase({
+        action: "open",
+        verification,
+        hasOpenOrder: verification.restingCount > 0,
+        remainingSize: requestedOpenSize != null ? Math.max(0, requestedOpenSize - (verification.totalFilledSize || 0)) : null,
+        tradeStatus: trade.status,
+      }),
+      lastExchangeState: verification.executionLabel,
     });
     writeLifecycleJournal("place_order", { trade, execution });
     return {
@@ -434,14 +455,26 @@ const toolMap = {
 
     const verification = summarizeExecutionResult(execution?.execution?.result);
     const requestedReduceSize = matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null;
+    const remainingReduceSize = requestedReduceSize != null ? Math.max(0, requestedReduceSize - (verification.totalFilledSize || 0)) : null;
     updateTradeExecutionState(tradeId, {
+      lastIntentAction: "reduce",
       lastReduceVerification: verification,
       lastReduceAt: new Date().toISOString(),
       lastReduceOutcome: verification.executionLabel,
       lastReduceFilledSize: verification.totalFilledSize,
       lastReduceAvgFillPx: verification.avgFillPx,
       lastRequestedReduceSize: requestedReduceSize,
-      remainingReduceSize: requestedReduceSize != null ? Math.max(0, requestedReduceSize - (verification.totalFilledSize || 0)) : null,
+      remainingReduceSize,
+    });
+    updateTradeLifecycle(tradeId, {
+      lifecyclePhase: inferExecutionPhase({
+        action: "reduce",
+        verification,
+        hasOpenOrder: verification.restingCount > 0,
+        remainingSize: remainingReduceSize,
+        tradeStatus: existing.status,
+      }),
+      lastExchangeState: verification.executionLabel,
     });
     const trade = reduceTradeRecord(tradeId, { reducePct, reason });
     writeLifecycleJournal("reduce_position", { tradeId, reducePct, reason, execution, matchingPosition, verification });
@@ -474,14 +507,26 @@ const toolMap = {
       updateTradeExchange(tradeId, { closeResult: execution.execution.result, closeVerification: verification });
     }
     const requestedCloseSize = matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) : null;
+    const remainingCloseSize = requestedCloseSize != null ? Math.max(0, requestedCloseSize - (verification.totalFilledSize || 0)) : null;
     updateTradeExecutionState(tradeId, {
+      lastIntentAction: "close",
       lastCloseVerification: verification,
       lastCloseAt: new Date().toISOString(),
       lastCloseOutcome: verification.executionLabel,
       lastCloseFilledSize: verification.totalFilledSize,
       lastCloseAvgFillPx: verification.avgFillPx,
       lastRequestedCloseSize: requestedCloseSize,
-      remainingCloseSize: requestedCloseSize != null ? Math.max(0, requestedCloseSize - (verification.totalFilledSize || 0)) : null,
+      remainingCloseSize,
+    });
+    updateTradeLifecycle(tradeId, {
+      lifecyclePhase: inferExecutionPhase({
+        action: "close",
+        verification,
+        hasOpenOrder: verification.restingCount > 0,
+        remainingSize: remainingCloseSize,
+        tradeStatus: remainingCloseSize > 0 ? existing.status : "closed",
+      }),
+      lastExchangeState: verification.executionLabel,
     });
     const trade = closeTradeRecord(tradeId, {
       reason,
