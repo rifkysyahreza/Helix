@@ -1,6 +1,7 @@
 import { createInfoClient } from "./hyperliquid-client.js";
 import { listRecentTrades, updateTradeExchange, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
 import { fetchOrderStatus, fetchHistoricalOrders } from "./tools/hyperliquid.js";
+import { recordExecutionIncident } from "./execution-incidents.js";
 
 function deriveExecutionSnapshot({ order = null, tradeFills = [], historical = null, status = null }) {
   const fillCount = Array.isArray(tradeFills) ? tradeFills.length : 0;
@@ -85,6 +86,7 @@ export async function syncTradesWithExchange(limit = 50) {
       updateTradeLifecycle(trade.tradeId, {
         lastExchangeState: executionSnapshot.exchangeState,
       });
+      recordExecutionIncident({ kind: "sync_exchange_terminal_state", tradeId: trade.tradeId, symbol: trade.symbol, exchangeState: executionSnapshot.exchangeState });
     }
 
     synced += 1;

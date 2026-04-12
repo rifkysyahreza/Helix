@@ -1,5 +1,6 @@
 import { getNormalizedAccountState } from "./account-state.js";
 import { listRecentTrades, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
+import { recordExecutionIncident } from "./execution-incidents.js";
 
 function shouldMarkTradeFlat(trade, position) {
   if (position) return false;
@@ -37,12 +38,16 @@ export async function reconcileExecutionLeftovers(limit = 200) {
 
     if (trade.status === "open" && !position && trade.executionState?.exchangeState && ["filled", "partially_filled", "cancelled"].includes(trade.executionState.exchangeState)) {
       patch.reconciledMissingLivePosition = true;
-      drifts.push({ tradeId: trade.tradeId, symbol: trade.symbol, kind: "open_trade_without_live_position", exchangeState: trade.executionState.exchangeState });
+      const drift = { tradeId: trade.tradeId, symbol: trade.symbol, kind: "open_trade_without_live_position", exchangeState: trade.executionState.exchangeState };
+      drifts.push(drift);
+      recordExecutionIncident({ kind: "reconciliation_drift_open_without_live_position", ...drift });
     }
 
     if (trade.status === "closed" && position) {
       patch.reconciledUnexpectedLivePosition = true;
-      drifts.push({ tradeId: trade.tradeId, symbol: trade.symbol, kind: "closed_trade_with_live_position", liveSize: position.szi });
+      const drift = { tradeId: trade.tradeId, symbol: trade.symbol, kind: "closed_trade_with_live_position", liveSize: position.szi };
+      drifts.push(drift);
+      recordExecutionIncident({ kind: "reconciliation_drift_closed_with_live_position", ...drift });
     }
 
     if (Object.keys(patch).length) {
@@ -57,12 +62,16 @@ export async function reconcileExecutionLeftovers(limit = 200) {
         closedAt: trade.closedAt || new Date().toISOString(),
         lastExchangeState: "reconciled_flat",
       });
-      lifecycleRepairs.push({ tradeId: trade.tradeId, symbol: trade.symbol, repair: "marked_closed_from_exchange_flat" });
+      const repair = { tradeId: trade.tradeId, symbol: trade.symbol, repair: "marked_closed_from_exchange_flat" };
+      lifecycleRepairs.push(repair);
+      recordExecutionIncident({ kind: "reconciliation_repair_marked_closed", ...repair });
     } else if (trade.status === "closed" && position) {
       updateTradeLifecycle(trade.tradeId, {
         lastExchangeState: "drift_live_position_still_open",
       });
-      lifecycleRepairs.push({ tradeId: trade.tradeId, symbol: trade.symbol, repair: "flagged_closed_trade_with_live_position" });
+      const repair = { tradeId: trade.tradeId, symbol: trade.symbol, repair: "flagged_closed_trade_with_live_position" };
+      lifecycleRepairs.push(repair);
+      recordExecutionIncident({ kind: "reconciliation_repair_flagged_live_position_on_closed_trade", ...repair });
     }
   }
 

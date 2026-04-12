@@ -4,6 +4,7 @@ import { createExchangeClient } from "./hyperliquid-client.js";
 import { fetchAllMids, fetchL2Book } from "./tools/hyperliquid.js";
 import { listRecentTrades } from "./state.js";
 import { getNormalizedAccountState } from "./account-state.js";
+import { recordExecutionIncident } from "./execution-incidents.js";
 
 function executionMode() {
   return process.env.HELIX_EXECUTION_MODE || (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true" ? "autonomous" : (process.env.DRY_RUN === "true" ? "dry-run" : "paper"));
@@ -52,6 +53,7 @@ export async function openPerpPosition(params) {
   const existingTrades = listRecentTrades(500);
   const risk = validateNewPositionRisk({ ...params, account, existingTrades });
   if (!risk.ok) {
+    recordExecutionIncident({ kind: "open_risk_block", symbol: params.symbol, side: params.side, issues: risk.issues, context });
     return { success: false, blocked: true, risk, context };
   }
 
@@ -76,6 +78,7 @@ export async function openPerpPosition(params) {
   if (context.mode === "autonomous") {
     const readiness = getLiveExecutionReadiness();
     if (!readiness.ready) {
+      recordExecutionIncident({ kind: "open_live_readiness_block", symbol: params.symbol, side: params.side, readiness, context });
       return {
         success: false,
         blocked: true,
@@ -98,6 +101,7 @@ export async function openPerpPosition(params) {
       grouping: "na",
     }, process.env.HYPERLIQUID_ACCOUNT_ADDRESS ? { vaultAddress: process.env.HYPERLIQUID_ACCOUNT_ADDRESS } : undefined);
 
+    recordExecutionIncident({ kind: "open_live_submit", symbol: params.symbol, side: params.side, context, resultPreview: result?.response?.data?.statuses || result?.data?.statuses || null });
     return {
       success: true,
       risk,
@@ -130,6 +134,7 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
   const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
   const risk = validateCloseRisk({ trade: { symbol, side, status: "open" }, account });
   if (!risk.ok) {
+    recordExecutionIncident({ kind: reducePct >= 100 ? "close_risk_block" : "reduce_risk_block", symbol, side, reducePct, issues: risk.issues, context });
     return { success: false, blocked: true, risk, context };
   }
 
@@ -154,6 +159,7 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
   if (context.mode === "autonomous") {
     const readiness = getLiveExecutionReadiness();
     if (!readiness.ready) {
+      recordExecutionIncident({ kind: reducePct >= 100 ? "close_live_readiness_block" : "reduce_live_readiness_block", symbol, side, reducePct, readiness, context });
       return {
         success: false,
         blocked: true,
@@ -164,6 +170,7 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
     }
 
     if (!livePosition || !livePosition.coin || !livePosition.szi) {
+      recordExecutionIncident({ kind: reducePct >= 100 ? "close_missing_live_position" : "reduce_missing_live_position", symbol, side, reducePct, context });
       return {
         success: false,
         blocked: true,
@@ -179,6 +186,7 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
     const reduceSize = size != null ? Math.abs(Number(size)) : liveSize * (Math.max(0, Math.min(100, reducePct)) / 100);
 
     if (!(livePosition.asset != null) || reduceSize <= 0) {
+      recordExecutionIncident({ kind: reducePct >= 100 ? "close_invalid_reduce_payload" : "reduce_invalid_reduce_payload", symbol, side, reducePct, reduceSize, asset: livePosition.asset, context });
       return {
         success: false,
         blocked: true,
@@ -206,6 +214,7 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
       grouping: "na",
     }, process.env.HYPERLIQUID_ACCOUNT_ADDRESS ? { vaultAddress: process.env.HYPERLIQUID_ACCOUNT_ADDRESS } : undefined);
 
+    recordExecutionIncident({ kind: reducePct >= 100 ? "close_live_submit" : "reduce_live_submit", symbol, side, reducePct, aggressivePx, context, resultPreview: result?.response?.data?.statuses || result?.data?.statuses || null });
     return {
       success: true,
       risk,
@@ -240,6 +249,7 @@ export async function closePerpPosition({ trade, livePosition = null }) {
   const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
   const risk = validateCloseRisk({ trade, account });
   if (!risk.ok) {
+    recordExecutionIncident({ kind: "close_risk_block", tradeId: trade.tradeId, symbol: trade.symbol, side: trade.side, issues: risk.issues, context });
     return { success: false, blocked: true, risk, context };
   }
 
@@ -263,6 +273,7 @@ export async function closePerpPosition({ trade, livePosition = null }) {
   if (context.mode === "autonomous") {
     const readiness = getLiveExecutionReadiness();
     if (!readiness.ready) {
+      recordExecutionIncident({ kind: "close_live_readiness_block", tradeId: trade.tradeId, symbol: trade.symbol, side: trade.side, readiness, context });
       return {
         success: false,
         blocked: true,

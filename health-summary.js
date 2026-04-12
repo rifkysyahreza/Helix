@@ -7,6 +7,7 @@ import { reconcileExecutionLeftovers } from "./reconciliation.js";
 import { buildGoLiveCheck } from "./go-live-check.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
 import { getNormalizedAccountState } from "./account-state.js";
+import { summarizeExecutionIncidents } from "./execution-incidents.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
   const trades = listRecentTrades(limit);
@@ -17,6 +18,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const reconciliation = await reconcileExecutionLeftovers(limit).catch(() => null);
   const goLive = await buildGoLiveCheck().catch(() => null);
   const perf = getPerformanceProfileSummary();
+  const incidents = summarizeExecutionIncidents(200);
 
   const openTrades = trades.filter((trade) => trade.status === "open");
   const closedTrades = trades.filter((trade) => trade.status === "closed");
@@ -32,6 +34,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   summaryLines.push(`Lifecycle repairs: ${lifecycleRepairs.length}`);
   summaryLines.push(`Controls: halted=${controls.halted} closeOnly=${controls.closeOnly} suspended=${Object.keys(controls.suspendedSymbols || {}).length}`);
   summaryLines.push(`Go-live recommendation: ${goLive?.recommendedMode || "unknown"}`);
+  summaryLines.push(`Execution incidents: ${incidents.total}`);
 
   if (reliability.worstSymbols?.length) {
     summaryLines.push(`Weakest execution reliability: ${reliability.worstSymbols.map((row) => `${row.symbol}:${row.reliabilityScore}`).join(" | ")}`);
@@ -56,6 +59,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     reliability,
     reconciliation,
     goLive,
+    incidents,
     performance: perf,
     summaryLines,
   };
