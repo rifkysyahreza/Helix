@@ -2,6 +2,8 @@ import { validateNewPositionRisk, validateCloseRisk } from "./risk.js";
 import { getLiveExecutionReadiness } from "./live-execution.js";
 import { createExchangeClient } from "./hyperliquid-client.js";
 import { fetchAllMids, fetchL2Book } from "./tools/hyperliquid.js";
+import { listRecentTrades } from "./state.js";
+import { getNormalizedAccountState } from "./account-state.js";
 
 function executionMode() {
   return process.env.HELIX_EXECUTION_MODE || (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true" ? "autonomous" : (process.env.DRY_RUN === "true" ? "dry-run" : "paper"));
@@ -46,7 +48,9 @@ async function buildAggressiveIocPrice({ symbol, isBuy, fallbackPx = null }) {
 
 export async function openPerpPosition(params) {
   const context = buildExecutionContext();
-  const risk = validateNewPositionRisk(params);
+  const account = await getNormalizedAccountState().catch(() => null);
+  const existingTrades = listRecentTrades(500);
+  const risk = validateNewPositionRisk({ ...params, account, existingTrades });
   if (!risk.ok) {
     return { success: false, blocked: true, risk, context };
   }
@@ -123,7 +127,8 @@ export async function openPerpPosition(params) {
 
 export async function reducePerpPosition({ symbol, side, reducePct = 100, size = null, livePosition = null }) {
   const context = buildExecutionContext();
-  const risk = validateCloseRisk({ trade: { symbol, side } });
+  const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
+  const risk = validateCloseRisk({ trade: { symbol, side, status: "open" }, account });
   if (!risk.ok) {
     return { success: false, blocked: true, risk, context };
   }
@@ -232,7 +237,8 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
 
 export async function closePerpPosition({ trade, livePosition = null }) {
   const context = buildExecutionContext();
-  const risk = validateCloseRisk({ trade });
+  const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
+  const risk = validateCloseRisk({ trade, account });
   if (!risk.ok) {
     return { success: false, blocked: true, risk, context };
   }

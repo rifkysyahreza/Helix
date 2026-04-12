@@ -1,6 +1,32 @@
 import { createInfoClient } from "./hyperliquid-client.js";
-import { listRecentTrades, updateTradeExchange } from "./state.js";
+import { listRecentTrades, updateTradeExchange, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
 import { fetchOrderStatus, fetchHistoricalOrders } from "./tools/hyperliquid.js";
+
+function deriveExecutionSnapshot({ order = null, tradeFills = [], historical = null, status = null }) {
+  const fillCount = Array.isArray(tradeFills) ? tradeFills.length : 0;
+  const totalFilledSize = Array.isArray(tradeFills)
+    ? tradeFills.reduce((sum, fill) => sum + Math.abs(Number(fill?.sz || fill?.closedPnl || 0) ? Number(fill?.sz || 0) : 0), 0)
+    : 0;
+
+  const historicalStatus = historical?.status || historical?.order?.status || null;
+  const statusText = JSON.stringify(status || historical || order || {}).toLowerCase();
+
+  let exchangeState = "unknown";
+  if (order) exchangeState = "open";
+  else if (fillCount > 0 && statusText.includes("filled")) exchangeState = "filled";
+  else if (fillCount > 0) exchangeState = "partially_filled";
+  else if (statusText.includes("cancel")) exchangeState = "cancelled";
+  else if (historicalStatus) exchangeState = String(historicalStatus).toLowerCase();
+
+  return {
+    exchangeState,
+    fillCount,
+    totalFilledSize: Number(totalFilledSize.toFixed(8)),
+    hasOpenOrder: Boolean(order),
+    historicalStatus,
+    lastOrderStatusAt: new Date().toISOString(),
+  };
+}
 
 export async function syncTradesWithExchange(limit = 50) {
   const user = process.env.HYPERLIQUID_ACCOUNT_ADDRESS;
@@ -44,6 +70,23 @@ export async function syncTradesWithExchange(limit = 50) {
       orderStatus: status,
       lastSyncedAt: new Date().toISOString(),
     });
+
+    const executionSnapshot = deriveExecutionSnapshot({ order, tradeFills, historical, status });
+    updateTradeExecutionState(trade.tradeId, {
+      exchangeState: executionSnapshot.exchangeState,
+      exchangeFillCount: executionSnapshot.fillCount,
+      exchangeTotalFilledSize: executionSnapshot.totalFilledSize,
+      hasOpenOrder: executionSnapshot.hasOpenOrder,
+      lastOrderStatusAt: executionSnapshot.lastOrderStatusAt,
+      historicalStatus: executionSnapshot.historicalStatus,
+    });
+
+    if (trade.status === "open" && ["filled", "partially_filled", "cancelled"].includes(executionSnapshot.exchangeState) && !executionSnapshot.hasOpenOrder) {
+      updateTradeLifecycle(trade.tradeId, {
+        lastExchangeState: executionSnapshot.exchangeState,
+      });
+    }
+
     synced += 1;
   }
 

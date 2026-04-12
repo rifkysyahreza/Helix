@@ -2,6 +2,10 @@ import fs from "fs";
 
 const STATE_FILE = "./state.json";
 
+function normalizeSymbol(symbol) {
+  return String(symbol || "").trim().toUpperCase();
+}
+
 function load() {
   if (!fs.existsSync(STATE_FILE)) {
     return { trades: {}, lastUpdated: null };
@@ -24,10 +28,20 @@ function makeTradeId(symbol) {
 
 export function createTradeRecord({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct, snapshot, exchange = null }) {
   const state = load();
-  const tradeId = makeTradeId(symbol);
+  const normalizedSymbol = normalizeSymbol(symbol);
+  const existingOpenTrade = Object.values(state.trades).find((trade) => trade.status === "open" && normalizeSymbol(trade.symbol) === normalizedSymbol);
+
+  if (existingOpenTrade) {
+    return {
+      ...existingOpenTrade,
+      duplicateOpenTrade: true,
+    };
+  }
+
+  const tradeId = makeTradeId(normalizedSymbol);
   state.trades[tradeId] = {
     tradeId,
-    symbol,
+    symbol: normalizedSymbol,
     side,
     sizeUsd,
     thesis,
@@ -88,6 +102,16 @@ export function updateTradeExecutionState(tradeId, executionStatePatch) {
   const trade = state.trades[tradeId];
   if (!trade) return null;
   trade.executionState = { ...(trade.executionState || {}), ...(executionStatePatch || {}) };
+  trade.updatedAt = new Date().toISOString();
+  save(state);
+  return trade;
+}
+
+export function updateTradeLifecycle(tradeId, lifecyclePatch) {
+  const state = load();
+  const trade = state.trades[tradeId];
+  if (!trade) return null;
+  Object.assign(trade, lifecyclePatch || {});
   trade.updatedAt = new Date().toISOString();
   save(state);
   return trade;

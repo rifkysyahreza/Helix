@@ -40,6 +40,7 @@ export function summarizeExecutionResult(result) {
   const avgFillPx = filled.length
     ? filled.reduce((sum, item) => sum + ((item.avgPx || 0) * (item.totalSz || 0)), 0) / Math.max(1, totalFilledSize)
     : null;
+  const orderIds = Array.from(new Set(statuses.map((item) => item.oid).filter(Boolean)));
 
   let executionLabel = "unknown";
   const lowerErrors = errors.map((item) => String(item.error || "").toLowerCase());
@@ -60,5 +61,7 @@ export function summarizeExecutionResult(result) {
     totalFilledSize,
     avgFillPx,
     executionLabel,
+    primaryOid: orderIds[0] || null,
+    orderIds,
   };
 }
