@@ -256,17 +256,40 @@ npm run dev
 
 ## Step-by-step: how to run Helix
 
-### 1. Install prerequisites
-You currently want Helix to run with the OpenClaw bridge, so install and verify OpenClaw first.
-
+### 1. Install prerequisites on a fresh machine
 Minimum practical prerequisites:
 - Node.js 18+
+- git
 - OpenClaw installed and working
 - Hyperliquid account address
 - Hyperliquid agent wallet address
 - Hyperliquid agent wallet private key
 
-### 2. Create your env file
+### 2. Install OpenClaw
+Install OpenClaw first, because Helix currently expects the OpenClaw bridge runtime.
+
+If OpenClaw is not installed yet, follow your normal OpenClaw install path first, then verify the CLI exists:
+
+```bash
+openclaw --help
+```
+
+Then verify your OpenClaw/Codex login path is working before touching Helix.
+
+### 3. Clone the Helix repo
+
+```bash
+git clone https://github.com/rifkysyahreza/Helix.git
+cd Helix
+```
+
+### 4. Install dependencies
+
+```bash
+npm install
+```
+
+### 5. Create your env file
 Copy `.env.example` to `.env` and start with a conservative configuration.
 
 Example:
@@ -293,7 +316,7 @@ HELIX_ACTION_COOLDOWN_MS=900000
 HELIX_IOC_SLIPPAGE_BPS=30
 ```
 
-### 3. Create `user-config.json`
+### 6. Create `user-config.json`
 Start conservative.
 
 Example:
@@ -318,7 +341,7 @@ Example:
 }
 ```
 
-### 4. Create `operator-knowledge.json`
+### 7. Create `operator-knowledge.json`
 Copy from `operator-knowledge.example.json` and add your actual beliefs, anti-patterns, and preferences.
 
 Use it for things like:
@@ -327,16 +350,15 @@ Use it for things like:
 - execution preferences
 - setups Helix should trust more or less
 
-### 5. Install dependencies and run smoke checks
+### 8. Run smoke checks
 
 ```bash
-npm install
 npm run test:openclaw-smoke
 ```
 
 If the smoke test fails, fix OpenClaw/runtime setup first before trying to trade.
 
-### 6. Start in paper mode
+### 9. Start in paper mode
 
 ```bash
 npm run start
@@ -350,7 +372,7 @@ HELIX_ENABLE_LIVE_EXECUTION=false
 HELIX_EXECUTION_MODE=paper
 ```
 
-### 7. Use Helix interactively
+### 10. Use Helix interactively
 Useful commands:
 - `/status`
 - `/watch`
@@ -366,7 +388,7 @@ What to check first:
 - learned beliefs making sense
 - compounding/risk budget not behaving wildly
 
-### 8. Move to approval mode
+### 11. Move to approval mode
 After paper looks sane, switch to:
 
 ```env
@@ -381,7 +403,7 @@ In approval mode, Helix can:
 - queue pending intents
 - replay approved intents through execution plumbing
 
-### 9. Run the go-live check before tiny autonomous
+### 12. Run the go-live check before tiny autonomous
 Helix now includes a go-live readiness check.
 
 Use the tool flow to confirm whether Helix recommends:
@@ -390,7 +412,7 @@ Use the tool flow to confirm whether Helix recommends:
 
 Do not move into autonomous until the go-live check looks clean.
 
-### 10. Only then test tiny autonomous
+### 13. Only then test tiny autonomous
 For first autonomous testing, keep size extremely small and limits tight.
 
 Suggested first tiny-autonomous profile:
@@ -414,7 +436,7 @@ HELIX_ENABLE_LIVE_EXECUTION=true
 HELIX_EXECUTION_MODE=autonomous
 ```
 
-### 11. Recommended operating ladder
+### 14. Recommended operating ladder
 Use this order:
 1. `paper`
 2. `approval`
