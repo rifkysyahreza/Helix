@@ -267,6 +267,19 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "build_health_summary",
+      description: "Build an operator-facing health summary covering controls, pending intents, trade counts, drift, reconciliation, and go-live posture.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "build_yesterday_report",
       description: "Build a learning report from positions closed yesterday, including pnl outcomes and adaptive summary lines.",
       parameters: {

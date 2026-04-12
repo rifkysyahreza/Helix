@@ -31,8 +31,12 @@ Already wired:
 - Hyperliquid account state fetch
 - basic setup ranking heuristic
 - journal note persistence
-- dry-run execution posture
+- dry-run / paper / approval posture
 - guarded live-execution readiness seam
+- operator controls (halt, close-only, symbol suspension)
+- pending intent expiry
+- exchange sync and reconciliation drift checks
+- operator-facing health summary
 
 Still to build next:
 - final verified Hyperliquid signing/submission payloads
@@ -464,6 +468,7 @@ Current practical status:
 - `paper` mode is usable
 - `approval` mode is usable
 - tiny-size autonomous testing is possible when the go-live check is clean
+- operator safety controls now exist for halt / close-only / symbol suspension
 - broad unattended live autonomy still deserves caution and continued hardening
 
 Right now the goal is:

@@ -24,6 +24,7 @@ import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from 
 import { reconcileExecutionLeftovers } from "../reconciliation.js";
 import { buildGoLiveCheck } from "../go-live-check.js";
 import { evaluateOperatorActionGate, getOperatorControls, haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol } from "../operator-controls.js";
+import { buildHealthSummary } from "../health-summary.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -727,6 +728,10 @@ const toolMap = {
 
   async build_go_live_check() {
     return await buildGoLiveCheck();
+  },
+
+  async build_health_summary({ limit = 100 } = {}) {
+    return buildHealthSummary({ limit });
   },
 
   async build_yesterday_report() {
