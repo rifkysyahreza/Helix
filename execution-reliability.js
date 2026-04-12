@@ -1,4 +1,5 @@
 import { listRecentTrades } from "./state.js";
+import { summarizeExecutionIncidents } from "./execution-incidents.js";
 
 export function buildExecutionReliabilitySummary(limit = 200) {
   const trades = listRecentTrades(limit);
@@ -6,7 +7,8 @@ export function buildExecutionReliabilitySummary(limit = 200) {
 
   for (const trade of trades) {
     const symbol = trade.symbol;
-    const outcome = trade.executionState?.lastCloseOutcome || trade.executionState?.lastReduceOutcome || null;
+    const outcome = trade.executionState?.lastCloseOutcome || trade.executionState?.lastReduceOutcome || trade.executionState?.lastOpenOutcome || null;
+    const lifecyclePhase = trade.lifecyclePhase || "unknown";
     if (!symbol || !outcome) continue;
 
     if (!bySymbol[symbol]) {
@@ -18,11 +20,13 @@ export function buildExecutionReliabilitySummary(limit = 200) {
         ioc_cancel: 0,
         error: 0,
         unknown: 0,
+        phases: {},
         total: 0,
       };
     }
 
     bySymbol[symbol][outcome] = (bySymbol[symbol][outcome] || 0) + 1;
+    bySymbol[symbol].phases[lifecyclePhase] = (bySymbol[symbol].phases[lifecyclePhase] || 0) + 1;
     bySymbol[symbol].total += 1;
   }
 
@@ -33,8 +37,11 @@ export function buildExecutionReliabilitySummary(limit = 200) {
       : 0;
   }
 
+  const incidents = summarizeExecutionIncidents(300);
+
   return {
     bySymbol,
+    incidents,
     worstSymbols: Object.values(bySymbol)
       .sort((a, b) => a.reliabilityScore - b.reliabilityScore)
       .slice(0, 5),

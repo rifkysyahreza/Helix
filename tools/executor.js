@@ -18,6 +18,7 @@ import { replayApprovedIntent } from "../execution-replay.js";
 import { summarizeExecutionResult } from "../execution-result.js";
 import { inferExecutionPhase, deriveExchangePhase } from "../execution-state-machine.js";
 import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
+import { listExecutionIncidents } from "../execution-incidents.js";
 import { buildCompoundingContext } from "../compounding.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
@@ -769,6 +770,22 @@ const toolMap = {
   async unsuspend_symbol({ symbol } = {}) {
     if (!symbol) return { error: "symbol is required" };
     return unsuspendSymbol(symbol);
+  },
+
+  async get_execution_audit({ limit = 200 } = {}) {
+    const reliability = buildExecutionReliabilitySummary(limit);
+    const trades = listRecentTrades(limit);
+    const phases = trades.reduce((acc, trade) => {
+      const phase = trade.lifecyclePhase || "unknown";
+      acc[phase] = (acc[phase] || 0) + 1;
+      return acc;
+    }, {});
+    return {
+      tradesInspected: trades.length,
+      phases,
+      reliability,
+      recentIncidents: listExecutionIncidents(Math.min(50, limit)),
+    };
   },
 
   async build_go_live_check() {

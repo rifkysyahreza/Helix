@@ -256,6 +256,22 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_execution_audit",
+      description: "Return execution reliability, lifecycle phase distribution, and recent execution incidents for battle-hardening review.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "How many recent trades to inspect. Default 200."
+          }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "build_go_live_check",
       description: "Evaluate whether Helix looks ready for cautious tiny-size autonomous testing, or whether it should remain in approval mode.",
       parameters: {
