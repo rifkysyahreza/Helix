@@ -7,6 +7,7 @@ function run() {
 
   assert(gitignore.includes("runtime-data/"));
   assert(indexSource.includes('"/health"'));
+  assert(indexSource.includes('"/audit"'));
   assert(indexSource.includes('"/halt"'));
   assert(indexSource.includes('"/resume"'));
   assert(indexSource.includes('"/close-only on"'));

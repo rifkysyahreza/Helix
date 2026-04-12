@@ -74,6 +74,7 @@ export function deriveExchangePhase({
   const preferReduce = lastIntentAction === "reduce";
 
   if (exchangeState === "filled") {
+    if (lastIntentAction === "open") return EXECUTION_PHASES.OPEN_FILLED;
     if (preferClose && hasCloseContext) return remainingClose > 0 ? EXECUTION_PHASES.CLOSE_PARTIAL : EXECUTION_PHASES.CLOSE_FILLED;
     if (preferReduce && hasReduceContext) return remainingReduce > 0 ? EXECUTION_PHASES.REDUCE_PARTIAL : EXECUTION_PHASES.REDUCE_FILLED;
     if (hasCloseContext && !hasReduceContext) return remainingClose > 0 ? EXECUTION_PHASES.CLOSE_PARTIAL : EXECUTION_PHASES.CLOSE_FILLED;
@@ -83,6 +84,7 @@ export function deriveExchangePhase({
   }
 
   if (exchangeState === "partially_filled") {
+    if (lastIntentAction === "open") return hasOpenOrder ? EXECUTION_PHASES.OPEN_PARTIAL : EXECUTION_PHASES.OPEN_FILLED;
     if (preferClose && hasCloseContext) return EXECUTION_PHASES.CLOSE_PARTIAL;
     if (preferReduce && hasReduceContext) return EXECUTION_PHASES.REDUCE_PARTIAL;
     if (hasCloseContext && !hasReduceContext) return EXECUTION_PHASES.CLOSE_PARTIAL;
@@ -92,6 +94,7 @@ export function deriveExchangePhase({
   }
 
   if (exchangeState === "cancelled") {
+    if (lastIntentAction === "open") return EXECUTION_PHASES.OPEN_CANCELLED;
     if (preferClose && hasCloseContext) return remainingClose > 0 ? EXECUTION_PHASES.CLOSE_PARTIAL : EXECUTION_PHASES.CLOSE_FILLED;
     if (preferReduce && hasReduceContext) return remainingReduce > 0 ? EXECUTION_PHASES.REDUCE_PARTIAL : EXECUTION_PHASES.REDUCE_FILLED;
     if (hasCloseContext && !hasReduceContext) return remainingClose > 0 ? EXECUTION_PHASES.CLOSE_PARTIAL : EXECUTION_PHASES.CLOSE_FILLED;

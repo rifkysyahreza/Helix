@@ -29,6 +29,16 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
     reasons.push("execution_reliability_too_weak");
   }
 
+  if (executionReliability && executionReliability.ioc_cancel >= 2) {
+    allowAutonomous = false;
+    reasons.push("ioc_cancel_streak");
+  }
+
+  if (executionReliability && executionReliability.error >= 2) {
+    allowAutonomous = false;
+    reasons.push("execution_error_streak");
+  }
+
   return {
     symbol,
     allowAutonomous,
