@@ -67,11 +67,9 @@ Phase 7 note:
 - `state.js`
 - OpenClaw bridge runtime and smoke tests
 
-### To be replaced/adapted for Hyperliquid
-- Solana / DLMM tools
-- pool-specific prompts
-- LP management heuristics
-- wallet token swap flows
+### Legacy surfaces
+- legacy Meteora/DLMM/LP tooling has been quarantined out of the active runtime path
+- active Helix runtime should now be treated as Hyperliquid-perps-only
 
 ---
 
@@ -478,7 +476,8 @@ Current practical status:
 - broad unattended live autonomy still deserves caution and continued hardening
 
 Right now the goal is:
-- preserve Meridian's strong base
+- preserve Meridian's strong ReAct/runtime base
 - keep Helix as its own sibling repo
 - maintain the right architecture for Hyperliquid perps
+- keep legacy LP/Meteora code quarantined from the active runtime path
 - iterate safely from supervised modes into cautious tiny-size autonomous live use
