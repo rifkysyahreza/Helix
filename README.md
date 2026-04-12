@@ -21,7 +21,7 @@ But its strategy brain is being rebuilt around:
 
 ## Current status
 
-This repo is now an **early working scaffold**.
+This repo is now a **hardened Hyperliquid-perps execution scaffold with early strategy logic**.
 
 Already wired:
 - runtime abstraction
@@ -31,22 +31,33 @@ Already wired:
 - Hyperliquid account state fetch
 - basic setup ranking heuristic
 - journal note persistence
-- dry-run / paper / approval posture
+- dry-run / paper / approval / autonomous posture
 - guarded live-execution readiness seam
 - operator controls (halt, close-only, symbol suspension)
-- pending intent expiry
+- pending intent expiry and replay-attempt marking
+- canonical execution lifecycle phases
 - exchange sync and reconciliation drift checks
+- execution incident ledger
+- execution audit surface
 - operator-facing health summary
+- burn-in telemetry and go-live readiness gating
+- replay policy foundation with single-attempt replay discipline
 
-Still to build next:
-- final verified Hyperliquid signing/submission payloads
-- richer market structure logic
-- post-trade analytics and evolution logic specific to futures
-- deeper cleanup of inherited Meridian surfaces
+What this means in practice:
+- `paper` mode is usable
+- `approval` mode is usable
+- tiny-size autonomous execution infrastructure is in place
+- execution truth, lifecycle tracking, replay hygiene, and incident visibility are materially stronger than the original scaffold
 
-Phase 7 note:
-- Helix now has nonce generation and live-submit intent scaffolding
-- that custom scaffolding is being superseded by the `@nktkas/hyperliquid` SDK for real exchange access
+Still not finished:
+- richer perp-specific technical analysis and strategy inputs
+- deeper market structure / volume profile / order-flow intelligence
+- fuller manager-driven autonomous reduce/close firing without conservative hold behavior
+- longer empirical burn-in history from repeated live-like operation
+
+Integration note:
+- Helix now uses the `@nktkas/hyperliquid` SDK as the primary real exchange access layer
+- custom Helix code is focused on orchestration, risk, journaling, replay discipline, and strategy logic
 
 ---
 
@@ -79,16 +90,17 @@ Helix v0 should support:
 1. read Hyperliquid market state
 2. inspect current account positions/orders
 3. rank candidate futures setups
-4. produce structured trade plans in dry run
+4. produce structured trade plans in dry run or approval mode
 5. journal trade decisions and outcomes
-6. learn from post-trade review
+6. track execution truth, lifecycle state, incidents, and replay safety
+7. learn from post-trade review
 
 Current v0 status:
-- steps 1 to 5 are now partially wired
-- step 6 still needs deeper futures-specific synthesis
-- live execution readiness and guardrails are scaffolded
-- nonce generation and live-submit intent scaffolding exist
-- final exchange submission logic is intentionally still gated
+- steps 1 to 6 are materially wired
+- step 7 exists in early form but still needs deeper futures-specific synthesis
+- live execution infrastructure exists for open, reduce, and close flows
+- execution lifecycle, incident logging, replay policy, burn-in telemetry, and go-live checks are now part of the active scaffold
+- the biggest missing layer is no longer execution plumbing, it is deeper perp-specific technical analysis and strategy intelligence
 
 ---
 
@@ -187,6 +199,7 @@ Before moving Helix beyond approval mode, run a go-live check and confirm that:
 - withdrawable buffer is not thin
 - compounding logic is not in capital-preservation mode
 - execution reliability is not materially degraded
+- burn-in telemetry says promotion is ready
 
 Helix now exposes a go-live readiness check intended to recommend either:
 - `approval`
@@ -227,8 +240,9 @@ HELIX_EXECUTION_MODE=paper
 - should only be used after the exchange/account/risk path is battle-tested
 
 Important note:
-- open execution path is further along than close/reduce execution
-- autonomous close/reduce is still not fully finished yet
+- open, reduce, and close execution infrastructure now exists
+- lifecycle, replay, sync, reconciliation, and incident tracking are materially hardened
+- the remaining conservative gap is manager-side autonomous reduce/close action firing, which still prefers safety over aggression
 
 Recommended OpenClaw config for now:
 
@@ -378,6 +392,11 @@ HELIX_EXECUTION_MODE=paper
 Useful commands:
 - `/status`
 - `/health`
+- `/audit`
+- `/drill`
+- `/burn-in start [paper|approval]`
+- `/burn-in stop`
+- `/burn-in status`
 - `/watch`
 - `/manage`
 - `/review`
@@ -466,14 +485,15 @@ It now has meaningful Hyperliquid perp execution architecture, including:
 - execution verification and reconciliation
 - safety rails, safety holds, and go-live checks
 
-That said, Helix should still be treated as a **cautious live-readiness system**, not a fully battle-hardened autonomous production trader.
+That said, Helix should still be treated as a **cautious live-readiness system with a battle-hardened execution scaffold**, not a fully proven autonomous production trader.
 
 Current practical status:
 - `paper` mode is usable
 - `approval` mode is usable
-- tiny-size autonomous testing is possible when the go-live check is clean
+- tiny-size autonomous testing is possible when the go-live check is clean and burn-in readiness is healthy
 - operator safety controls now exist for halt / close-only / symbol suspension
-- broad unattended live autonomy still deserves caution and continued hardening
+- replay policy, incident logging, lifecycle tracking, execution audit, and burn-in telemetry are in place
+- broad unattended live autonomy still deserves caution and empirical proof from longer burn-in history
 
 Right now the goal is:
 - preserve Meridian's strong ReAct/runtime base
