@@ -603,7 +603,8 @@ const toolMap = {
       }
 
       if (config.execution.mode === "approval" && intent) {
-        const pending = addPendingIntent({ source: "manage_open_positions", coin: position.coin, side: position.side, intent, reason, beliefContext: learnedBelief });
+        const linkedTrade = recentTrade?.status === "open" ? recentTrade : null;
+        const pending = addPendingIntent({ source: "manage_open_positions", coin: position.coin, side: position.side, intent, reason, beliefContext: learnedBelief, tradeId: linkedTrade?.tradeId || null });
         markActionEmitted(actionKey);
         execution = { requiresApproval: true, intent, pending };
       }
@@ -688,8 +689,9 @@ const toolMap = {
 
     if (decision === "approved") {
       const replay = await replayApprovedIntent(current);
+      const finalDecision = replay?.success ? decision : "rejected";
       const reconciliation = await reconcileExecutionLeftovers(200).catch(() => null);
-      const resolved = resolvePendingIntent(id, decision, { replay, reconciliation });
+      const resolved = resolvePendingIntent(id, finalDecision, { replay, reconciliation, requestedDecision: decision });
       return { resolved, replay, reconciliation };
     }
 

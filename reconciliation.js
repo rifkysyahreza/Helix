@@ -1,12 +1,24 @@
 import { getNormalizedAccountState } from "./account-state.js";
 import { listRecentTrades, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
 
+function shouldMarkTradeFlat(trade, position) {
+  if (position) return false;
+  if (trade.status !== "open") return false;
+  const exchangeState = trade.executionState?.exchangeState;
+  const remainingCloseSize = trade.executionState?.remainingCloseSize;
+  const remainingReduceSize = trade.executionState?.remainingReduceSize;
+  return ["filled", "partially_filled", "cancelled"].includes(exchangeState)
+    && (remainingCloseSize === 0 || remainingCloseSize == null)
+    && (remainingReduceSize === 0 || remainingReduceSize == null);
+}
+
 export async function reconcileExecutionLeftovers(limit = 200) {
   const trades = listRecentTrades(limit);
   const account = await getNormalizedAccountState().catch(() => null);
   const positionsByCoin = new Map((account?.positions || []).map((position) => [position.coin, position]));
   const updates = [];
   const drifts = [];
+  const lifecycleRepairs = [];
 
   for (const trade of trades) {
     const position = positionsByCoin.get(trade.symbol) || null;
@@ -38,10 +50,19 @@ export async function reconcileExecutionLeftovers(limit = 200) {
       updates.push({ tradeId: trade.tradeId, symbol: trade.symbol, patch });
     }
 
-    if (trade.status === "open" && !position && trade.executionState?.remainingCloseSize === 0) {
+    if (shouldMarkTradeFlat(trade, position)) {
       updateTradeLifecycle(trade.tradeId, {
+        status: "closed",
+        closeReason: trade.closeReason || "reconciled_flat",
+        closedAt: trade.closedAt || new Date().toISOString(),
         lastExchangeState: "reconciled_flat",
       });
+      lifecycleRepairs.push({ tradeId: trade.tradeId, symbol: trade.symbol, repair: "marked_closed_from_exchange_flat" });
+    } else if (trade.status === "closed" && position) {
+      updateTradeLifecycle(trade.tradeId, {
+        lastExchangeState: "drift_live_position_still_open",
+      });
+      lifecycleRepairs.push({ tradeId: trade.tradeId, symbol: trade.symbol, repair: "flagged_closed_trade_with_live_position" });
     }
   }
 
@@ -49,5 +70,6 @@ export async function reconcileExecutionLeftovers(limit = 200) {
     account,
     updates,
     drifts,
+    lifecycleRepairs,
   };
 }

@@ -117,6 +117,11 @@ export function updateTradeLifecycle(tradeId, lifecyclePatch) {
   return trade;
 }
 
+export function getTradeById(tradeId) {
+  const state = load();
+  return state.trades[tradeId] || null;
+}
+
 export function listRecentTrades(limit = 10) {
   const state = load();
   return Object.values(state.trades)
