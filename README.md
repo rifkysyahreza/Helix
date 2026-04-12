@@ -254,6 +254,174 @@ npm run test:openclaw-smoke
 npm run dev
 ```
 
+## Step-by-step: how to run Helix
+
+### 1. Install prerequisites
+You currently want Helix to run with the OpenClaw bridge, so install and verify OpenClaw first.
+
+Minimum practical prerequisites:
+- Node.js 18+
+- OpenClaw installed and working
+- Hyperliquid account address
+- Hyperliquid agent wallet address
+- Hyperliquid agent wallet private key
+
+### 2. Create your env file
+Copy `.env.example` to `.env` and start with a conservative configuration.
+
+Example:
+
+```env
+LLM_RUNTIME=openclaw-codex
+OPENCLAW_AGENT_COMMAND=openclaw
+OPENCLAW_AGENT_TIMEOUT_MS=300000
+OPENCLAW_AGENT_SESSION_PREFIX=helix-openclaw-bridge
+OPENCLAW_AGENT_EXTRA_ARGS=--thinking low
+OPENCLAW_MODEL=openai-codex/gpt-5.4
+LLM_MODEL=openai-codex/gpt-5.4
+
+DRY_RUN=true
+HELIX_ENABLE_LIVE_EXECUTION=false
+HELIX_EXECUTION_MODE=paper
+
+HYPERLIQUID_ACCOUNT_ADDRESS=your_account_address
+HYPERLIQUID_AGENT_WALLET_ADDRESS=your_agent_wallet_address
+HYPERLIQUID_AGENT_WALLET_PRIVATE_KEY=your_agent_wallet_private_key
+
+HELIX_OPERATOR_KNOWLEDGE_FILE=./operator-knowledge.json
+HELIX_ACTION_COOLDOWN_MS=900000
+HELIX_IOC_SLIPPAGE_BPS=30
+```
+
+### 3. Create `user-config.json`
+Start conservative.
+
+Example:
+
+```json
+{
+  "allowedSymbols": ["BTC", "ETH", "SOL"],
+  "maxConcurrentPositions": 2,
+  "maxPositionNotionalUsd": 100,
+  "maxTotalExposureUsd": 200,
+  "maxLeverage": 2,
+  "dailyLossLimitUsd": 30,
+  "defaultPositionSizeUsd": 25,
+  "stopLossPct": 1.2,
+  "takeProfitPct": 2.5,
+  "trailingStopPct": 0.8,
+  "observerIntervalMin": 5,
+  "plannerIntervalMin": 15,
+  "reviewIntervalMin": 60,
+  "regime": "trend-following",
+  "timeframe": "15m"
+}
+```
+
+### 4. Create `operator-knowledge.json`
+Copy from `operator-knowledge.example.json` and add your actual beliefs, anti-patterns, and preferences.
+
+Use it for things like:
+- preferred market conditions
+- symbols to avoid
+- execution preferences
+- setups Helix should trust more or less
+
+### 5. Install dependencies and run smoke checks
+
+```bash
+npm install
+npm run test:openclaw-smoke
+```
+
+If the smoke test fails, fix OpenClaw/runtime setup first before trying to trade.
+
+### 6. Start in paper mode
+
+```bash
+npm run start
+```
+
+Recommended first mode:
+
+```env
+DRY_RUN=true
+HELIX_ENABLE_LIVE_EXECUTION=false
+HELIX_EXECUTION_MODE=paper
+```
+
+### 7. Use Helix interactively
+Useful commands:
+- `/status`
+- `/watch`
+- `/manage`
+- `/review`
+- `/sync`
+- `/pending`
+
+What to check first:
+- thesis quality
+- size suggestions
+- execution mode behavior
+- learned beliefs making sense
+- compounding/risk budget not behaving wildly
+
+### 8. Move to approval mode
+After paper looks sane, switch to:
+
+```env
+DRY_RUN=false
+HELIX_ENABLE_LIVE_EXECUTION=true
+HELIX_EXECUTION_MODE=approval
+```
+
+In approval mode, Helix can:
+- think normally
+- generate exact actions
+- queue pending intents
+- replay approved intents through execution plumbing
+
+### 9. Run the go-live check before tiny autonomous
+Helix now includes a go-live readiness check.
+
+Use the tool flow to confirm whether Helix recommends:
+- `approval`
+- `autonomous-tiny`
+
+Do not move into autonomous until the go-live check looks clean.
+
+### 10. Only then test tiny autonomous
+For first autonomous testing, keep size extremely small and limits tight.
+
+Suggested first tiny-autonomous profile:
+
+```json
+{
+  "maxConcurrentPositions": 1,
+  "maxPositionNotionalUsd": 50,
+  "maxTotalExposureUsd": 50,
+  "maxLeverage": 1,
+  "dailyLossLimitUsd": 15,
+  "defaultPositionSizeUsd": 10
+}
+```
+
+And switch env to:
+
+```env
+DRY_RUN=false
+HELIX_ENABLE_LIVE_EXECUTION=true
+HELIX_EXECUTION_MODE=autonomous
+```
+
+### 11. Recommended operating ladder
+Use this order:
+1. `paper`
+2. `approval`
+3. `autonomous-tiny`
+
+Do not skip straight to broad autonomous live trading.
+
 ---
 
 ## Important note
