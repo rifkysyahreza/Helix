@@ -23,6 +23,7 @@ import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
 import { reconcileExecutionLeftovers } from "../reconciliation.js";
 import { buildGoLiveCheck } from "../go-live-check.js";
+import { evaluateOperatorActionGate, getOperatorControls, haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol } from "../operator-controls.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -360,6 +361,16 @@ const toolMap = {
   },
 
   async place_order({ symbol, side, sizeUsd, thesis, stopLossPct, takeProfitPct, leverage = 1 }) {
+    const operatorGate = evaluateOperatorActionGate({ actionType: "place_order", symbol });
+    if (!operatorGate.allowed) {
+      return {
+        placed: false,
+        blocked: true,
+        reason: operatorGate.reason,
+        controls: operatorGate.controls,
+      };
+    }
+
     const proposal = await toolMap.propose_trade({ symbol, side });
     const execution = await openPerpPosition({
       symbol,
@@ -522,7 +533,12 @@ const toolMap = {
       const executionReliability = buildExecutionReliabilitySummary(300).bySymbol[position.coin] || null;
       const safetyHold = getSymbolSafetyHold(position.coin);
 
-      if (safetyHold?.active) {
+      const operatorGate = evaluateOperatorActionGate({ actionType: "manage_open_positions", symbol: position.coin });
+
+      if (!operatorGate.allowed && operatorGate.reason?.startsWith("symbol_suspended:")) {
+        suggestedAction = "hold";
+        reason = `Operator suspended ${position.coin}.`;
+      } else if (safetyHold?.active) {
         suggestedAction = "hold";
         reason = `Safety hold active for ${position.coin}: ${safetyHold.reason || "no reason recorded"}.`;
       } else if ((position.returnOnEquity || 0) <= -config.execution.stopLossPct) {
@@ -574,6 +590,14 @@ const toolMap = {
         execution = {
           suppressed: true,
           note: `Suppressed duplicate action for ${actionKey} during cooldown window.`,
+        };
+        intent = null;
+      }
+
+      if (intent && getOperatorControls().halted) {
+        execution = {
+          blocked: true,
+          note: "Global operator halt is active.",
         };
         intent = null;
       }
@@ -649,6 +673,7 @@ const toolMap = {
         pending: intents.filter((item) => item.status === "pending").length,
         approved: intents.filter((item) => item.status === "approved").length,
         rejected: intents.filter((item) => item.status === "rejected").length,
+        expired: intents.filter((item) => item.status === "expired").length,
       },
     };
   },
@@ -656,6 +681,10 @@ const toolMap = {
   async resolve_pending_intent({ id, decision }) {
     const current = getPendingIntent(id);
     if (!current) return { error: `Pending intent not found: ${id}` };
+
+    if (current.status !== "pending") {
+      return { error: `Pending intent ${id} is already ${current.status}.`, current };
+    }
 
     if (decision === "approved") {
       const replay = await replayApprovedIntent(current);
@@ -666,6 +695,32 @@ const toolMap = {
 
     const resolved = resolvePendingIntent(id, decision);
     return { resolved };
+  },
+
+  async get_operator_controls() {
+    return getOperatorControls();
+  },
+
+  async halt_trading({ reason } = {}) {
+    return haltTrading(reason || "operator_halt");
+  },
+
+  async resume_trading() {
+    return resumeTrading();
+  },
+
+  async set_close_only_mode({ enabled = true, reason } = {}) {
+    return setCloseOnly(enabled, reason || null);
+  },
+
+  async suspend_symbol({ symbol, reason } = {}) {
+    if (!symbol) return { error: "symbol is required" };
+    return suspendSymbol(symbol, reason || "operator_suspend");
+  },
+
+  async unsuspend_symbol({ symbol } = {}) {
+    if (!symbol) return { error: "symbol is required" };
+    return unsuspendSymbol(symbol);
   },
 
   async build_go_live_check() {

@@ -1,4 +1,5 @@
 import fs from "fs";
+import { getPendingIntentTtlMs } from "./operator-controls.js";
 
 const PENDING_FILE = "./runtime-data/pending-intents.json";
 
@@ -18,14 +19,17 @@ function save(data) {
 
 export function addPendingIntent(intent) {
   const data = load();
+  const now = new Date();
   const id = `intent-${Date.now()}`;
+  const ttlMs = getPendingIntentTtlMs();
   const entry = {
     id,
-    createdAt: new Date().toISOString(),
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
     status: "pending",
     transitionHistory: [
       {
-        at: new Date().toISOString(),
+        at: now.toISOString(),
         status: "pending",
       }
     ],
@@ -37,17 +41,33 @@ export function addPendingIntent(intent) {
 }
 
 export function listPendingIntents() {
-  return load().intents;
+  const data = load();
+  const now = Date.now();
+  let changed = false;
+
+  for (const item of data.intents) {
+    if (item.status === "pending" && item.expiresAt && now > new Date(item.expiresAt).getTime()) {
+      item.status = "expired";
+      item.expiredAt = new Date().toISOString();
+      item.transitionHistory = item.transitionHistory || [];
+      item.transitionHistory.push({ at: item.expiredAt, status: "expired" });
+      changed = true;
+    }
+  }
+
+  if (changed) save(data);
+  return data.intents;
 }
 
 export function getPendingIntent(id) {
-  return load().intents.find((intent) => intent.id === id) || null;
+  return listPendingIntents().find((intent) => intent.id === id) || null;
 }
 
 export function resolvePendingIntent(id, decision, extra = {}) {
   const data = load();
   const item = data.intents.find((intent) => intent.id === id);
   if (!item) return null;
+  if (item.status !== "pending") return item;
   item.status = decision;
   item.resolvedAt = new Date().toISOString();
   item.transitionHistory = item.transitionHistory || [];

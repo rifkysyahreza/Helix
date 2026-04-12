@@ -178,6 +178,84 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_operator_controls",
+      description: "Return current operator safety controls including global halt, close-only mode, and suspended symbols.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "halt_trading",
+      description: "Activate a global operator halt so Helix will not emit new opening actions.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "resume_trading",
+      description: "Clear the global operator halt.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_close_only_mode",
+      description: "Enable or disable close-only mode so Helix can reduce/close but not open new positions.",
+      parameters: {
+        type: "object",
+        properties: {
+          enabled: { type: "boolean" },
+          reason: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "suspend_symbol",
+      description: "Suspend a symbol from new opening actions.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" },
+          reason: { type: "string" }
+        },
+        required: ["symbol"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "unsuspend_symbol",
+      description: "Remove symbol suspension.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" }
+        },
+        required: ["symbol"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "build_go_live_check",
       description: "Evaluate whether Helix looks ready for cautious tiny-size autonomous testing, or whether it should remain in approval mode.",
       parameters: {
