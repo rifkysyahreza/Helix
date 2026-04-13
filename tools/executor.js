@@ -27,6 +27,7 @@ import { analyzeVolumeProfile } from "../analyzers/volume-profile.js";
 import { analyzePerpContext } from "../analyzers/perp-context.js";
 import { analyzeOrderBook } from "../analyzers/order-book.js";
 import { synthesizeMarketAnalysis } from "../analyzers/market-synthesis.js";
+import { summarizeSymbolAnalysis } from "../analyzers/analysis-summary.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -324,11 +325,13 @@ const toolMap = {
   async analyze_symbol({ symbol }) {
     if (!symbol) return { error: "symbol is required" };
     const upper = String(symbol).toUpperCase();
+    const analysis = await buildSymbolAnalysis(upper);
     return {
       symbol: upper,
       timeframe: config.screening.timeframe,
       regime: config.screening.regime,
-      analysis: await buildSymbolAnalysis(upper),
+      summary: summarizeSymbolAnalysis(analysis),
+      analysis,
     };
   },
 
@@ -373,6 +376,7 @@ const toolMap = {
         fundingTrend: analysis.fundingTrend,
         bookImbalance: analysis.bookImbalance,
         analyzers: analysis,
+        summary: summarizeSymbolAnalysis(analysis),
         note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, and L2 book data.",
       };
     }));
@@ -405,6 +409,7 @@ const toolMap = {
       side,
       mode: process.env.DRY_RUN === "true" ? "dry-run" : "live",
       thesis: builtThesis.thesis,
+      analysisSummary: summarizeSymbolAnalysis(analysis),
       operatorKnowledge: builtThesis.operatorKnowledge,
       symbolProfile: builtThesis.symbolProfile,
       learnedSymbolBelief: builtThesis.learnedSymbolBelief,
