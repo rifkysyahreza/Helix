@@ -1,5 +1,6 @@
 import { getTradeById, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
 import { cancelRestingOrder, escalateRestingEntry } from "./order-management.js";
+import { replaceRestingOrder } from "./order-modify.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
 
 export async function evaluateRestingOrderEscalation(tradeId, { staleMs = Number(process.env.HELIX_RESTING_ORDER_STALE_MS || (15 * 60 * 1000)), autoAct = false } = {}) {
@@ -51,9 +52,17 @@ export async function evaluateRestingOrderEscalation(tradeId, { staleMs = Number
     recordExecutionIncident({ kind: action === "follow_partial_fill" ? "resting_order_partial_follow_up_needed" : "resting_order_escalation_needed", ...result });
 
     if (autoAct) {
-      result.actionResult = action === "escalate_entry"
-        ? await escalateRestingEntry({ tradeId })
-        : await cancelRestingOrder({ tradeId });
+      if (action === "escalate_entry") {
+        const trade = getTradeById(tradeId);
+        const currentPx = Number(trade?.snapshot?.markPx || trade?.snapshot?.midPx || 0) || null;
+        const existingPx = Number(trade?.executionState?.restingOrderLastPrice || trade?.snapshot?.markPx || 0) || null;
+        const shouldReprice = currentPx && existingPx && Math.abs((currentPx - existingPx) / existingPx) >= 0.0025;
+        result.actionResult = shouldReprice
+          ? await replaceRestingOrder({ tradeId, price: currentPx })
+          : await escalateRestingEntry({ tradeId });
+      } else {
+        result.actionResult = await cancelRestingOrder({ tradeId });
+      }
     }
   }
 

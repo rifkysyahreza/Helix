@@ -153,6 +153,23 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "replace_resting_order",
+      description: "Modify an existing resting order to a new price/size instead of cancelling and fully re-entering.",
+      parameters: {
+        type: "object",
+        properties: {
+          tradeId: { type: "string" },
+          price: { type: "number" },
+          size: { type: "number" },
+          tif: { type: "string" }
+        },
+        required: ["tradeId", "price"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_market_stream_state",
       description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
       parameters: {

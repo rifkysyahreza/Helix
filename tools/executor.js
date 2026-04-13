@@ -51,6 +51,7 @@ import { startBurnIn, stopBurnIn, summarizeBurnInState } from "../burn-in.js";
 import { scanStaleRestingOrders, markRestingOrderPlaced } from "../resting-orders.js";
 import { evaluateRestingOrderEscalation } from "../resting-order-policy.js";
 import { cancelRestingOrder, escalateRestingEntry } from "../order-management.js";
+import { replaceRestingOrder } from "../order-modify.js";
 import { runAutonomousManagementPass } from "../autonomous-manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -459,6 +460,11 @@ const toolMap = {
 
   async run_autonomous_management({ autoAct = true } = {}) {
     return runAutonomousManagementPass({ autoAct });
+  },
+
+  async replace_resting_order({ tradeId, price, size, tif } = {}) {
+    if (!tradeId || !price) return { error: "tradeId and price are required" };
+    return replaceRestingOrder({ tradeId, price, size, tif });
   },
 
   async list_account_state() {
