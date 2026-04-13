@@ -19,7 +19,7 @@ function buildExecutionContext() {
   };
 }
 
-async function buildAggressiveIocPrice({ symbol, isBuy, fallbackPx = null }) {
+async function buildAggressiveIocPrice({ symbol, isBuy, fallbackPx = null, slippageBpsOverride = null }) {
   const [mids, book] = await Promise.all([
     fetchAllMids().catch(() => null),
     fetchL2Book(symbol).catch(() => null),
@@ -39,12 +39,84 @@ async function buildAggressiveIocPrice({ symbol, isBuy, fallbackPx = null }) {
     throw new Error(`Unable to derive aggressive IOC price for ${symbol}`);
   }
 
-  const slippageBps = Number(process.env.HELIX_IOC_SLIPPAGE_BPS || 30);
+  const slippageBps = slippageBpsOverride != null ? Number(slippageBpsOverride) : Number(process.env.HELIX_IOC_SLIPPAGE_BPS || 30);
   const multiplier = isBuy
     ? (1 + slippageBps / 10000)
     : (1 - slippageBps / 10000);
 
   return Number((reference * multiplier).toFixed(8));
+}
+
+function deriveOpenExecutionPolicy(params = {}) {
+  const style = params.executionTactics?.orderStyle || "ioc_limit";
+  const aggressionBps = Number(params.executionTactics?.aggressionBps || process.env.HELIX_IOC_SLIPPAGE_BPS || 30);
+
+  if (style === "resting_limit_preferred") {
+    return {
+      tif: "Gtc",
+      orderStyle: style,
+      aggressionBps,
+      note: "Pullback style prefers resting limit placement over immediate IOC crossing.",
+    };
+  }
+
+  if (style === "small_probe_limit") {
+    return {
+      tif: "Gtc",
+      orderStyle: style,
+      aggressionBps: Math.min(aggressionBps, 10),
+      note: "Fade style uses small probing passive placement first.",
+    };
+  }
+
+  if (style === "stand_aside") {
+    return {
+      tif: "Ioc",
+      orderStyle: style,
+      aggressionBps: 0,
+      blocked: true,
+      note: "No-trade style should not execute live entry.",
+    };
+  }
+
+  return {
+    tif: "Ioc",
+    orderStyle: style,
+    aggressionBps,
+    note: "Breakout/default style uses aggressive IOC entry.",
+  };
+}
+
+async function buildOpenOrderSpec(params = {}) {
+  const policy = deriveOpenExecutionPolicy(params);
+  if (policy.blocked) {
+    return { blocked: true, policy, reason: "execution_policy_blocks_entry" };
+  }
+
+  const isBuy = params.side === "long";
+  let price = Number(params.price || 0) || null;
+
+  if (policy.tif === "Ioc") {
+    price = await buildAggressiveIocPrice({
+      symbol: params.symbol,
+      isBuy,
+      fallbackPx: params.price,
+      slippageBpsOverride: policy.aggressionBps,
+    });
+  }
+
+  return {
+    blocked: false,
+    policy,
+    order: {
+      a: params.asset,
+      b: isBuy,
+      p: String(price),
+      s: String(params.size),
+      r: false,
+      t: { limit: { tif: policy.tif } },
+    },
+  };
 }
 
 export async function openPerpPosition(params) {
@@ -55,6 +127,23 @@ export async function openPerpPosition(params) {
   if (!risk.ok) {
     recordExecutionIncident({ kind: "open_risk_block", symbol: params.symbol, side: params.side, issues: risk.issues, context });
     return { success: false, blocked: true, risk, context };
+  }
+
+  const orderSpec = await buildOpenOrderSpec(params);
+  if (orderSpec.blocked) {
+    recordExecutionIncident({ kind: "open_policy_block", symbol: params.symbol, side: params.side, context, policy: orderSpec.policy });
+    return {
+      success: false,
+      blocked: true,
+      risk,
+      context,
+      execution: {
+        mode: context.mode,
+        action: "open_position",
+        policy: orderSpec.policy,
+        note: orderSpec.reason,
+      },
+    };
   }
 
   if (context.mode === "approval") {
@@ -70,6 +159,8 @@ export async function openPerpPosition(params) {
         side: params.side,
         sizeUsd: params.sizeUsd,
         leverage: params.leverage,
+        order: orderSpec.order,
+        policy: orderSpec.policy,
         note: "Approval mode: generated exact action intent but did not execute.",
       },
     };
@@ -90,18 +181,11 @@ export async function openPerpPosition(params) {
 
     const exchange = createExchangeClient();
     const result = await exchange.order({
-      orders: [{
-        a: params.asset,
-        b: params.side === "long",
-        p: String(params.price),
-        s: String(params.size),
-        r: false,
-        t: { limit: { tif: params.tif || "Ioc" } },
-      }],
+      orders: [orderSpec.order],
       grouping: "na",
     }, process.env.HYPERLIQUID_ACCOUNT_ADDRESS ? { vaultAddress: process.env.HYPERLIQUID_ACCOUNT_ADDRESS } : undefined);
 
-    recordExecutionIncident({ kind: "open_live_submit", symbol: params.symbol, side: params.side, context, resultPreview: result?.response?.data?.statuses || result?.data?.statuses || null });
+    recordExecutionIncident({ kind: "open_live_submit", symbol: params.symbol, side: params.side, context, policy: orderSpec.policy, orderPreview: orderSpec.order, resultPreview: result?.response?.data?.statuses || result?.data?.statuses || null });
     return {
       success: true,
       risk,
@@ -109,6 +193,8 @@ export async function openPerpPosition(params) {
       execution: {
         mode: context.mode,
         action: "open_position",
+        policy: orderSpec.policy,
+        order: orderSpec.order,
         result,
       },
     };
@@ -124,6 +210,8 @@ export async function openPerpPosition(params) {
       side: params.side,
       sizeUsd: params.sizeUsd,
       leverage: params.leverage,
+      order: orderSpec.order,
+      policy: orderSpec.policy,
       note: "Dry-run/paper execution recorded through guarded execution seam.",
     },
   };

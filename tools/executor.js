@@ -607,7 +607,7 @@ const toolMap = {
       asset: proposal.snapshot?.assetIndex,
       price: proposal.snapshot?.markPx || proposal.snapshot?.midPx || 1,
       size: sizeUsd ?? proposal.sizeUsd,
-      tif: "Ioc",
+      executionTactics: proposal.executionTactics,
     });
     if (!execution.success) {
       return execution;
