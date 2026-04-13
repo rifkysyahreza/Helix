@@ -31,6 +31,21 @@ function run() {
   assert.equal(reduce.action, "reduce");
   assert.equal(reduce.reducePct, 50);
 
+  const trailing = evaluatePositionManagement({
+    trade: { tradeId: "t3", symbol: "SOL", side: "long", sizeUsd: 100, executionState: { executionTactics: { orderStyle: "ioc_limit" } }, reductions: [] },
+    livePosition: { returnOnEquity: 12, unrealizedPnl: 10 },
+    analysis: {
+      synthesis: { bias: "long" },
+      tradeVeto: { blocked: false, reasons: [] },
+      multiTimeframe: { alignment: "strong_long" },
+      orderFlowSignals: { directionalBias: "short" },
+      tradeFlow: { bias: "short" },
+      entryStyle: { style: "breakout" },
+      vwapValue: { valueLocation: "below_value" },
+    },
+  });
+  assert.equal(trailing.action, "reduce");
+
   console.log("position management policy tests passed");
 }
 
