@@ -13,6 +13,7 @@ export function buildTradePlanFromAnalysis({ snapshot = null, analysis = null, d
   const microstructure = analysis?.microstructure || {};
   const tradeFlow = analysis?.tradeFlow || {};
   const tradeVeto = analysis?.tradeVeto || {};
+  const orderFlowSignals = analysis?.orderFlowSignals || {};
 
   const location = vwapValue.location || "unknown";
   const atr = Number(volatility?.atr || 0) || null;
@@ -53,6 +54,9 @@ export function buildTradePlanFromAnalysis({ snapshot = null, analysis = null, d
       synthesis.executionQuality === "poor" ? "Execution quality is poor, so reduce aggression or skip." : "Execution quality is acceptable.",
       microstructure.regime === "thin" ? "Microstructure is thin, so expect worse slippage and avoid size." : "Microstructure is not obviously thin.",
       tradeFlow.deltaBias === "buy_pressure" ? "Trade flow shows buy pressure." : tradeFlow.deltaBias === "sell_pressure" ? "Trade flow shows sell pressure." : "Trade flow is balanced or unavailable.",
+      orderFlowSignals.divergence !== "none" ? `Tape-book divergence detected: ${orderFlowSignals.divergence}.` : "No strong tape-book divergence detected.",
+      orderFlowSignals.absorption ? "Absorption-style behavior detected, so be careful chasing." : "No strong absorption hint detected.",
+      orderFlowSignals.liquiditySweep !== "none" ? `Liquidity sweep risk: ${orderFlowSignals.liquiditySweep}.` : "No obvious liquidity sweep risk.",
       Array.isArray(tradeVeto.cautions) && tradeVeto.cautions.length ? `Live cautions: ${tradeVeto.cautions.join(", ")}.` : "No extra live-flow cautions.",
       atr ? `ATR context is ${atr}.` : "ATR unavailable.",
       `Bias is ${synthesis.bias || "unknown"} with confidence ${synthesis.confidence ?? "n/a"}.`,

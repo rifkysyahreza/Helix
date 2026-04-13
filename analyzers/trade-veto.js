@@ -6,6 +6,7 @@ export function evaluateTradeVeto({ analysis = null, requestedSide = null } = {}
   const perpContext = analysis?.perpContext || {};
   const microstructure = analysis?.microstructure || {};
   const tradeFlow = analysis?.tradeFlow || {};
+  const orderFlowSignals = analysis?.orderFlowSignals || {};
 
   const vetoes = [];
   const cautions = [];
@@ -23,6 +24,10 @@ export function evaluateTradeVeto({ analysis = null, requestedSide = null } = {}
   if (requestedSide === "long" && tradeFlow.deltaBias === "sell_pressure") cautions.push("trade_flow_against_long");
   if (requestedSide === "short" && tradeFlow.deltaBias === "buy_pressure") cautions.push("trade_flow_against_short");
   if (microstructure.absorptionHint && synthesis.confidence < 0.75) cautions.push("possible_absorption");
+  if (orderFlowSignals.absorption) cautions.push("flow_absorption_conflict");
+  if (orderFlowSignals.divergence !== "none") cautions.push(orderFlowSignals.divergence);
+  if (orderFlowSignals.liquiditySweep !== "none") cautions.push(orderFlowSignals.liquiditySweep);
+  if (orderFlowSignals.signalBias === "avoid") vetoes.push("order_flow_avoid");
 
   return {
     allowed: vetoes.length === 0,
