@@ -70,6 +70,7 @@ The analyzer layer now exists for:
 - candle-derived volume profile approximation
 - perp context interpretation from funding / OI / premium
 - order-book imbalance and execution-quality heuristics
+- multi-factor market synthesis for long / short / no-trade biasing
 
 Integration note:
 - Helix now uses the `@nktkas/hyperliquid` SDK as the primary real exchange access layer
