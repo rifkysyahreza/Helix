@@ -63,9 +63,13 @@ Base knowledge direction now includes:
 - perp context interpretation
 - order-flow and execution-quality principles
 
-The first real analyzer layer now exists for:
+The analyzer layer now exists for:
 - market structure classification
 - volatility / ATR expansion-compression detection
+- VWAP and value area approximation
+- candle-derived volume profile approximation
+- perp context interpretation from funding / OI / premium
+- order-book imbalance and execution-quality heuristics
 
 Integration note:
 - Helix now uses the `@nktkas/hyperliquid` SDK as the primary real exchange access layer
