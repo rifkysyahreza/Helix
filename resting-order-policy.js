@@ -18,8 +18,11 @@ export async function evaluateRestingOrderEscalation(tradeId, { staleMs = Number
   if (!hasOpenOrder) {
     action = partialFill ? "follow_partial_fill" : "none";
     reason = partialFill ? "resting_order_partially_filled_without_open_order" : "no_active_resting_order";
+  } else if (partialFill && !hasOpenOrder) {
+    action = "follow_partial_fill";
+    reason = "partial_fill_present_without_open_order";
   } else if (ageMs != null && ageMs >= staleMs) {
-    action = "escalate_entry";
+    action = partialFill ? "follow_partial_fill" : "escalate_entry";
     reason = partialFill ? "stale_partial_fill_needs_follow_up" : "stale_resting_entry_needs_escalation";
   }
 

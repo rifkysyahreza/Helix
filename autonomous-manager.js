@@ -4,6 +4,7 @@ import { evaluateAutonomousSafety } from "./safety-rails.js";
 import { reconcileExecutionLeftovers } from "./reconciliation.js";
 import { escalateRestingEntry, cancelRestingOrder } from "./order-management.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
+import { evaluatePartialFillFollowUp } from "./partial-fill-policy.js";
 
 export async function runAutonomousManagementPass({ autoAct = true } = {}) {
   const account = await getNormalizedAccountState().catch(() => null);
@@ -36,9 +37,19 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
     }
 
     if (followUp.action === "follow_partial_fill") {
-      const result = await cancelRestingOrder({ tradeId: followUp.tradeId });
-      actions.push({ tradeId: followUp.tradeId, action: followUp.action, result });
-      recordExecutionIncident({ kind: "autonomous_manager_partial_fill_follow_up", tradeId: followUp.tradeId });
+      const partialPlan = evaluatePartialFillFollowUp(followUp.tradeId);
+      let result = null;
+
+      if (partialPlan.action === "complete_aggressively") {
+        result = await escalateRestingEntry({ tradeId: followUp.tradeId });
+      } else if (partialPlan.action === "cancel_remainder") {
+        result = await cancelRestingOrder({ tradeId: followUp.tradeId });
+      } else {
+        result = { held: true, partialPlan };
+      }
+
+      actions.push({ tradeId: followUp.tradeId, action: followUp.action, partialPlan, result });
+      recordExecutionIncident({ kind: "autonomous_manager_partial_fill_follow_up", tradeId: followUp.tradeId, partialAction: partialPlan.action });
     }
   }
 

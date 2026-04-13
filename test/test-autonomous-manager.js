@@ -25,6 +25,17 @@ async function run() {
   const result = await runAutonomousManagementPass({ autoAct: false });
   assert.ok(Array.isArray(result.actions));
   assert.equal(result.actions.length >= 1, true);
+
+  updateTradeExecutionState(trade.tradeId, {
+    restingOrderActive: false,
+    hasOpenOrder: false,
+    exchangeTotalFilledSize: 60,
+    lastRequestedOpenSize: 100,
+    remainingOpenSize: 40,
+    executionTactics: { orderStyle: "resting_limit_preferred" },
+  });
+  const partial = await runAutonomousManagementPass({ autoAct: false });
+  assert.equal(Array.isArray(partial.actions), true);
   cleanup();
   console.log("autonomous manager tests passed");
 }
