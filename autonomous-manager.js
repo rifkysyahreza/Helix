@@ -8,6 +8,7 @@ import { evaluatePartialFillFollowUp } from "./partial-fill-policy.js";
 import { listRecentTrades } from "./state.js";
 import { evaluateOpenPositions } from "./position-management-policy.js";
 import { reducePerpPosition, closePerpPosition } from "./execution.js";
+import { buildSymbolAnalysis } from "./tools/executor.js";
 
 export async function runAutonomousManagementPass({ autoAct = true } = {}) {
   const account = await getNormalizedAccountState().catch(() => null);
@@ -57,7 +58,15 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
   }
 
   const openTrades = listRecentTrades(200).filter((trade) => trade.status === "open");
-  const positionDecisions = evaluateOpenPositions({ trades: openTrades, positions: account?.positions || [] });
+  const analysisEntries = await Promise.all(openTrades.map(async (trade) => {
+    try {
+      return [trade.symbol, await buildSymbolAnalysis(trade.symbol)];
+    } catch {
+      return [trade.symbol, null];
+    }
+  }));
+  const analysesBySymbol = Object.fromEntries(analysisEntries);
+  const positionDecisions = evaluateOpenPositions({ trades: openTrades, positions: account?.positions || [], analysesBySymbol });
 
   for (const decision of positionDecisions) {
     if (!autoAct || !safety.allowAutonomous) {

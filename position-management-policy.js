@@ -1,4 +1,4 @@
-import { listRecentTrades } from "./state.js";
+import { evaluateThesisBreak } from "./thesis-break-policy.js";
 
 function round(value, digits = 4) {
   const num = Number(value);
@@ -6,7 +6,7 @@ function round(value, digits = 4) {
   return Number(num.toFixed(digits));
 }
 
-export function evaluatePositionManagement({ trade = null, livePosition = null } = {}) {
+export function evaluatePositionManagement({ trade = null, livePosition = null, analysis = null } = {}) {
   if (!trade || !livePosition) {
     return { action: "hold", reason: "missing_trade_or_live_position" };
   }
@@ -18,11 +18,20 @@ export function evaluatePositionManagement({ trade = null, livePosition = null }
   const lastExchangeState = trade.lastExchangeState || executionState.exchangeState || "unknown";
   const reductions = Array.isArray(trade.reductions) ? trade.reductions.length : 0;
 
+  const thesisBreak = evaluateThesisBreak({ trade, analysis, livePosition });
+
   let action = "hold";
   let reducePct = 0;
   let reason = "position_still_valid";
 
-  if (lastExchangeState === "partial_follow_up_needed") {
+  if (thesisBreak.broken && thesisBreak.confidence >= 0.7) {
+    action = "close";
+    reason = `thesis_break_hard:${thesisBreak.reason}`;
+  } else if (thesisBreak.broken) {
+    action = "reduce";
+    reducePct = 50;
+    reason = `thesis_break_trim:${thesisBreak.reason}`;
+  } else if (lastExchangeState === "partial_follow_up_needed") {
     action = "reduce";
     reducePct = 50;
     reason = "partial_fill_follow_up_risk_trim";
@@ -51,12 +60,17 @@ export function evaluatePositionManagement({ trade = null, livePosition = null }
     reason,
     roe: round(roe, 4),
     unrealizedPnl: round(unrealizedPnl, 4),
+    thesisBreak,
   };
 }
 
-export function evaluateOpenPositions({ trades = [], positions = [] } = {}) {
+export function evaluateOpenPositions({ trades = [], positions = [], analysesBySymbol = {} } = {}) {
   const positionsByCoin = new Map((positions || []).map((position) => [position.coin, position]));
   return (trades || [])
     .filter((trade) => trade.status === "open")
-    .map((trade) => evaluatePositionManagement({ trade, livePosition: positionsByCoin.get(trade.symbol) || null }));
+    .map((trade) => evaluatePositionManagement({
+      trade,
+      livePosition: positionsByCoin.get(trade.symbol) || null,
+      analysis: analysesBySymbol?.[trade.symbol] || null,
+    }));
 }

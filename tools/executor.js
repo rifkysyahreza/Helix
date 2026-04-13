@@ -274,7 +274,7 @@ function extractTradeLessons(trades) {
   return lessons;
 }
 
-async function buildSymbolAnalysis(symbol) {
+export async function buildSymbolAnalysis(symbol) {
   const context = await toolMap.get_market_context({ symbols: [symbol] });
   const snapshot = context.symbols[0] || null;
   const [candles, higherTimeframeCandles, lowerTimeframeCandles, funding, book] = await Promise.all([
