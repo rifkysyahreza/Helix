@@ -48,6 +48,7 @@ import { buildGoLiveCheck } from "../go-live-check.js";
 import { evaluateOperatorActionGate, getOperatorControls, haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol } from "../operator-controls.js";
 import { buildHealthSummary } from "../health-summary.js";
 import { startBurnIn, stopBurnIn, summarizeBurnInState } from "../burn-in.js";
+import { scanStaleRestingOrders, markRestingOrderPlaced } from "../resting-orders.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -434,6 +435,10 @@ const toolMap = {
     };
   },
 
+  async scan_resting_orders() {
+    return scanStaleRestingOrders();
+  },
+
   async list_account_state() {
     const normalized = await getNormalizedAccountState();
 
@@ -640,6 +645,13 @@ const toolMap = {
       lastRequestedOpenSize: requestedOpenSize,
       remainingOpenSize: requestedOpenSize != null ? Math.max(0, requestedOpenSize - (verification.totalFilledSize || 0)) : null,
     });
+    if (proposal.executionTactics?.orderStyle === "resting_limit_preferred" || proposal.executionTactics?.orderStyle === "small_probe_limit") {
+      markRestingOrderPlaced(trade.tradeId, {
+        orderStyle: proposal.executionTactics?.orderStyle,
+        tif: execution?.execution?.policy?.tif || execution?.execution?.order?.t?.limit?.tif || null,
+        oid: exchangeMeta?.oid || null,
+      });
+    }
     updateTradeLifecycle(trade.tradeId, {
       lifecyclePhase: inferExecutionPhase({
         action: "open",

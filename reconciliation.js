@@ -50,6 +50,11 @@ export async function reconcileExecutionLeftovers(limit = 200) {
       recordExecutionIncident({ kind: "reconciliation_drift_closed_with_live_position", ...drift });
     }
 
+    if (trade.executionState?.restingOrderActive && !position && trade.executionState?.exchangeState === "cancelled") {
+      patch.reconciledRestingOrderCancelled = true;
+      patch.restingOrderActive = false;
+    }
+
     if (Object.keys(patch).length) {
       updateTradeExecutionState(trade.tradeId, patch);
       updates.push({ tradeId: trade.tradeId, symbol: trade.symbol, patch });

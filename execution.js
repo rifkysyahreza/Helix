@@ -5,6 +5,7 @@ import { fetchAllMids, fetchL2Book } from "./tools/hyperliquid.js";
 import { listRecentTrades } from "./state.js";
 import { getNormalizedAccountState } from "./account-state.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
+import { markRestingOrderPlaced } from "./resting-orders.js";
 
 function executionMode() {
   return process.env.HELIX_EXECUTION_MODE || (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true" ? "autonomous" : (process.env.DRY_RUN === "true" ? "dry-run" : "paper"));

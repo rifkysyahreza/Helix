@@ -81,6 +81,8 @@ export async function syncTradesWithExchange(limit = 50) {
       hasOpenOrder: executionSnapshot.hasOpenOrder,
       lastOrderStatusAt: executionSnapshot.lastOrderStatusAt,
       historicalStatus: executionSnapshot.historicalStatus,
+      restingOrderActive: executionSnapshot.hasOpenOrder,
+      restingOrderStale: executionSnapshot.hasOpenOrder ? (trade.executionState?.restingOrderStale || false) : false,
     });
 
     const nextLifecyclePhase = deriveExchangePhase({
