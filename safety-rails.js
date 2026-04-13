@@ -1,5 +1,6 @@
 import { listRecentTrades } from "./state.js";
 import { buildPortfolioRiskProfile } from "./portfolio-risk.js";
+import { buildAutonomySessionState } from "./autonomy-session-state.js";
 
 export function evaluateAutonomousSafety({ account = null, symbol = null, executionReliability = null }) {
   const recentTrades = listRecentTrades(100);
@@ -13,6 +14,7 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
   const capitalBase = withdrawable ?? accountValue ?? null;
 
   const portfolio = buildPortfolioRiskProfile({ account });
+  const session = buildAutonomySessionState();
 
   let allowAutonomous = true;
   const reasons = [];
@@ -50,6 +52,13 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
     reasons.push(...portfolio.reasons);
   }
 
+  if (session.sessionDegraded) {
+    reasons.push(...session.reasons);
+  }
+  if (session.dailyLockout) {
+    allowAutonomous = false;
+  }
+
   return {
     symbol,
     allowAutonomous,
@@ -58,5 +67,6 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
     capitalBase,
     executionReliability,
     portfolio,
+    session,
   };
 }
