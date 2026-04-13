@@ -667,12 +667,14 @@ const toolMap = {
     const account = await getNormalizedAccountState().catch(() => null);
     const matchingPosition = account?.positions?.find((position) => position.coin === existing.symbol);
     const { reducePerpPosition } = await import("../execution.js");
+    const proposal = await toolMap.propose_trade({ symbol: existing.symbol, side: existing.side });
     const execution = await reducePerpPosition({
       symbol: existing.symbol,
       side: existing.side,
       reducePct,
       size: matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null,
       livePosition: matchingPosition || null,
+      executionTactics: proposal.executionTactics,
     });
     if (!execution.success) {
       return execution;
@@ -723,7 +725,8 @@ const toolMap = {
       return { error: `No live position found for symbol ${existing.symbol}. Refusing fake close.` };
     }
 
-    const execution = await closePerpPosition({ trade: existing, livePosition: matchingPosition || null });
+    const proposal = await toolMap.propose_trade({ symbol: existing.symbol, side: existing.side });
+    const execution = await closePerpPosition({ trade: existing, livePosition: matchingPosition || null, executionTactics: proposal.executionTactics });
     if (!execution.success) {
       return execution;
     }

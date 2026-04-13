@@ -217,7 +217,29 @@ export async function openPerpPosition(params) {
   };
 }
 
-export async function reducePerpPosition({ symbol, side, reducePct = 100, size = null, livePosition = null }) {
+function deriveReduceExecutionPolicy(params = {}) {
+  const style = params.executionTactics?.orderStyle || "ioc_limit";
+  const aggressionBps = Number(params.executionTactics?.aggressionBps || process.env.HELIX_IOC_SLIPPAGE_BPS || 30);
+  const reducePct = Number(params.reducePct || 100);
+
+  if (style === "resting_limit_preferred" && reducePct < 100) {
+    return {
+      tif: "Gtc",
+      orderStyle: "resting_reduce",
+      aggressionBps: Math.min(aggressionBps, 15),
+      note: "Pullback-style management prefers patient partial reduction.",
+    };
+  }
+
+  return {
+    tif: "Ioc",
+    orderStyle: reducePct >= 100 ? "decisive_exit" : "aggressive_reduce",
+    aggressionBps,
+    note: reducePct >= 100 ? "Full close uses aggressive decisive exit." : "Partial reduce uses aggressive execution by default.",
+  };
+}
+
+export async function reducePerpPosition({ symbol, side, reducePct = 100, size = null, livePosition = null, executionTactics = null }) {
   const context = buildExecutionContext();
   const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
   const risk = validateCloseRisk({ trade: { symbol, side, status: "open" }, account });
@@ -225,6 +247,8 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
     recordExecutionIncident({ kind: reducePct >= 100 ? "close_risk_block" : "reduce_risk_block", symbol, side, reducePct, issues: risk.issues, context });
     return { success: false, blocked: true, risk, context };
   }
+
+  const reducePolicy = deriveReduceExecutionPolicy({ executionTactics, reducePct });
 
   if (context.mode === "approval") {
     return {
@@ -239,6 +263,7 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
         side,
         reducePct,
         size,
+        policy: reducePolicy,
         note: "Approval mode: generated exact reduce intent but did not execute.",
       },
     };
@@ -284,25 +309,33 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
       };
     }
 
-    const aggressivePx = await buildAggressiveIocPrice({
+    const reduceOrderSpec = await buildOrderSpec({
+      asset: Number(livePosition.asset),
       symbol: livePosition.coin || symbol,
-      isBuy: closeSideIsBuy,
-      fallbackPx: livePosition.entryPx || null,
+      side: closeSideIsBuy ? "long" : "short",
+      size: reduceSize,
+      price: livePosition.entryPx || null,
+      reduceOnly: true,
+      policy: reducePolicy,
     });
 
+    if (reduceOrderSpec.blocked) {
+      recordExecutionIncident({ kind: reducePct >= 100 ? "close_policy_block" : "reduce_policy_block", symbol, side, reducePct, context, policy: reduceOrderSpec.policy });
+      return {
+        success: false,
+        blocked: true,
+        risk,
+        context,
+        execution: { note: reduceOrderSpec.reason, policy: reduceOrderSpec.policy },
+      };
+    }
+
     const result = await exchange.order({
-      orders: [{
-        a: Number(livePosition.asset),
-        b: closeSideIsBuy,
-        p: String(aggressivePx),
-        s: String(reduceSize),
-        r: true,
-        t: { limit: { tif: "Ioc" } },
-      }],
+      orders: [reduceOrderSpec.order],
       grouping: "na",
     }, process.env.HYPERLIQUID_ACCOUNT_ADDRESS ? { vaultAddress: process.env.HYPERLIQUID_ACCOUNT_ADDRESS } : undefined);
 
-    recordExecutionIncident({ kind: reducePct >= 100 ? "close_live_submit" : "reduce_live_submit", symbol, side, reducePct, aggressivePx, context, resultPreview: result?.response?.data?.statuses || result?.data?.statuses || null });
+    recordExecutionIncident({ kind: reducePct >= 100 ? "close_live_submit" : "reduce_live_submit", symbol, side, reducePct, context, policy: reduceOrderSpec.policy, orderPreview: reduceOrderSpec.order, resultPreview: result?.response?.data?.statuses || result?.data?.statuses || null });
     return {
       success: true,
       risk,
@@ -311,7 +344,8 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
         mode: context.mode,
         action: reducePct >= 100 ? "close_position" : "reduce_position",
         reducePct,
-        aggressivePx,
+        policy: reduceOrderSpec.policy,
+        order: reduceOrderSpec.order,
         result,
       },
     };
@@ -327,12 +361,13 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
       side,
       reducePct,
       size,
+      policy: reducePolicy,
       note: "Dry-run/paper reduce recorded through guarded execution seam.",
     },
   };
 }
 
-export async function closePerpPosition({ trade, livePosition = null }) {
+export async function closePerpPosition({ trade, livePosition = null, executionTactics = null }) {
   const context = buildExecutionContext();
   const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
   const risk = validateCloseRisk({ trade, account });
@@ -377,6 +412,7 @@ export async function closePerpPosition({ trade, livePosition = null }) {
       reducePct: 100,
       size: Math.abs(Number(livePosition?.szi || 0)),
       livePosition,
+      executionTactics,
     });
   }
 

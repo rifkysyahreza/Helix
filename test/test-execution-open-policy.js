@@ -9,6 +9,9 @@ function run() {
   assert(source.includes('style === "stand_aside"'));
   assert(source.includes('tif: "Gtc"'));
   assert(source.includes('kind: "open_policy_block"'));
+  assert(source.includes('function deriveReduceExecutionPolicy'));
+  assert(source.includes('orderStyle: "resting_reduce"'));
+  assert(source.includes('kind: reducePct >= 100 ? "close_policy_block" : "reduce_policy_block"'));
   console.log("execution open policy tests passed");
 }
 
