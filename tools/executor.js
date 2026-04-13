@@ -303,9 +303,10 @@ async function buildSymbolAnalysis(symbol) {
   const volumeProfile = analyzeVolumeProfile(candles);
   const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
   const orderBook = analyzeOrderBook(book);
+  const microstructure = analyzeMicrostructureHistory(getMicrostructureSamples(symbol).samples);
   const tradeFlow = analyzeTradeFlow(getTradeStreamState(symbol).trades);
   const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
-  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, tradeFlow }, requestedSide: synthesis.bias === "short" ? "short" : "long" });
+  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow }, requestedSide: synthesis.bias === "short" ? "short" : "long" });
 
   updateMarketStreamSnapshot(symbol, {
     bookImbalance,
@@ -330,6 +331,7 @@ async function buildSymbolAnalysis(symbol) {
     volumeProfile,
     perpContext,
     orderBook,
+    microstructure,
     synthesis,
     tradeFlow,
     tradeVeto,
@@ -444,18 +446,29 @@ const toolMap = {
     const candidates = await Promise.all(context.symbols.map(async (snapshot) => {
       const analysis = await buildSymbolAnalysis(snapshot.symbol);
 
+      const liveFlowPenalty = analysis.tradeVeto.cautions?.length ? analysis.tradeVeto.cautions.length * 0.75 : 0;
+      const microstructurePenalty = analysis.microstructure?.regime === "thin" ? 1.25 : 0;
+      const tradeFlowBoost = analysis.tradeFlow?.deltaBias === "buy_pressure" && analysis.synthesis.bias === "long"
+        ? 0.75
+        : analysis.tradeFlow?.deltaBias === "sell_pressure" && analysis.synthesis.bias === "short"
+          ? 0.75
+          : 0;
+      const finalScore = Number((analysis.scored.score + analysis.synthesis.longScore - analysis.synthesis.shortScore + tradeFlowBoost - liveFlowPenalty - microstructurePenalty).toFixed(2));
+
       return {
         symbol: snapshot.symbol,
         verdict: !analysis.tradeVeto.allowed ? "skip" : analysis.synthesis.bias === "long" || analysis.synthesis.bias === "short" ? "tradeable" : analysis.synthesis.bias.startsWith("watch") ? "watch" : analysis.scored.setupQuality,
         sideBias: analysis.synthesis.bias,
-        score: Number((analysis.scored.score + analysis.synthesis.longScore - analysis.synthesis.shortScore).toFixed(2)),
-        reasons: [...analysis.scored.reasons, ...analysis.synthesis.reasons],
-        riskFlags: analysis.synthesis.riskFlags,
+        score: finalScore,
+        reasons: [...analysis.scored.reasons, ...analysis.synthesis.reasons, ...(analysis.tradeVeto.cautions || [])],
+        riskFlags: [...(analysis.synthesis.riskFlags || []), ...(analysis.tradeVeto.vetoes || [])],
         tradeVeto: analysis.tradeVeto,
         confidence: analysis.synthesis.confidence,
         executionQuality: analysis.synthesis.executionQuality,
         location: analysis.synthesis.location,
         crowding: analysis.synthesis.crowding,
+        microstructure: analysis.microstructure,
+        tradeFlow: analysis.tradeFlow,
         funding: snapshot.funding,
         openInterest: snapshot.openInterest,
         dayNtlVlm: snapshot.dayNtlVlm,
@@ -465,7 +478,7 @@ const toolMap = {
         bookImbalance: analysis.bookImbalance,
         analyzers: analysis,
         summary: summarizeSymbolAnalysis(analysis),
-        note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, and L2 book data.",
+        note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, L2 book data, rolling microstructure, and native trade flow.",
       };
     }));
 
@@ -496,7 +509,16 @@ const toolMap = {
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
     const synthesisSizeBias = synthesis.bias === "no_trade" ? 0.5 : synthesis.confidence >= 0.7 ? 1.1 : 1;
-    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1) * synthesisSizeBias).toFixed(2));
+    const microstructureSizeBias = analysis.microstructure?.regime === "thin" ? 0.75 : 1;
+    const cautionSizeBias = analysis.tradeVeto?.cautions?.length ? Math.max(0.6, 1 - (analysis.tradeVeto.cautions.length * 0.1)) : 1;
+    const tradeFlowSizeBias = analysis.tradeFlow?.deltaBias === "buy_pressure" && side === "long"
+      ? 1.05
+      : analysis.tradeFlow?.deltaBias === "sell_pressure" && side === "short"
+        ? 1.05
+        : analysis.tradeFlow?.deltaBias === "balanced"
+          ? 0.95
+          : 1;
+    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1) * synthesisSizeBias * microstructureSizeBias * cautionSizeBias * tradeFlowSizeBias).toFixed(2));
     const riskBudget = buildRiskBudget({ account: liveAccount, proposedSizeUsd });
 
     return {

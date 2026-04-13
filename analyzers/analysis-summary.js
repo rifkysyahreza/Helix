@@ -6,6 +6,9 @@ export function summarizeSymbolAnalysis(analysis = {}) {
   const orderBook = analysis.orderBook || {};
   const synthesis = analysis.synthesis || {};
   const multiTimeframe = analysis.multiTimeframe || {};
+  const microstructure = analysis.microstructure || {};
+  const tradeFlow = analysis.tradeFlow || {};
+  const tradeVeto = analysis.tradeVeto || {};
 
   const lines = [];
   lines.push(`Bias: ${synthesis.bias || "unknown"} (confidence=${synthesis.confidence ?? "n/a"})`);
@@ -15,6 +18,11 @@ export function summarizeSymbolAnalysis(analysis = {}) {
   lines.push(`Value: ${vwapValue.location || "unknown"}, VWAP=${vwapValue.vwap ?? "n/a"}, POC=${vwapValue.poc ?? "n/a"}`);
   lines.push(`Perp context: ${perpContext.crowding || "unknown"}, funding=${perpContext.funding ?? "n/a"}, premium=${perpContext.premium ?? "n/a"}`);
   lines.push(`Order book: ${orderBook.depthBias || "unknown"}, spreadPct=${orderBook.spreadPct ?? "n/a"}, execution=${orderBook.executionQuality || "unknown"}`);
+  lines.push(`Microstructure: ${microstructure.regime || "unknown"}, liquidityShift=${microstructure.liquidityShift || "unknown"}, absorption=${microstructure.absorptionHint ?? "n/a"}`);
+  lines.push(`Trade flow: ${tradeFlow.deltaBias || "unknown"}, delta=${tradeFlow.delta ?? "n/a"}, aggression=${tradeFlow.aggressionBias || "unknown"}`);
+  if (Array.isArray(tradeVeto.cautions) && tradeVeto.cautions.length) {
+    lines.push(`Live cautions: ${tradeVeto.cautions.join(", ")}`);
+  }
   if (Array.isArray(synthesis.riskFlags) && synthesis.riskFlags.length) {
     lines.push(`Risk flags: ${synthesis.riskFlags.join(", ")}`);
   }
