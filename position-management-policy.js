@@ -1,5 +1,6 @@
 import { evaluateThesisBreak } from "./thesis-break-policy.js";
 import { evaluateTrailingExit } from "./trailing-exit-policy.js";
+import { evaluateProfitProtection } from "./profit-protection-state.js";
 
 function round(value, digits = 4) {
   const num = Number(value);
@@ -21,12 +22,23 @@ export function evaluatePositionManagement({ trade = null, livePosition = null, 
 
   const thesisBreak = evaluateThesisBreak({ trade, analysis, livePosition });
   const trailingExit = evaluateTrailingExit({ trade, analysis, livePosition });
+  const profitProtection = evaluateProfitProtection(trade.tradeId, { livePosition, analysis });
 
   let action = "hold";
   let reducePct = 0;
   let reason = "position_still_valid";
 
   if (thesisBreak.broken && thesisBreak.confidence >= 0.7) {
+    action = "close";
+    reason = `thesis_break_hard:${thesisBreak.reason}`;
+  } else if (profitProtection.action === "reduce") {
+    action = "reduce";
+    reducePct = 25;
+    reason = profitProtection.reason;
+  } else if (profitProtection.action === "raise_stop") {
+    action = "protect";
+    reason = profitProtection.reason;
+  } else if (trailingExit.action === "reduce") {
     action = "close";
     reason = `thesis_break_hard:${thesisBreak.reason}`;
   } else if (trailingExit.action === "reduce") {
@@ -71,6 +83,7 @@ export function evaluatePositionManagement({ trade = null, livePosition = null, 
     unrealizedPnl: round(unrealizedPnl, 4),
     thesisBreak,
     trailingExit,
+    profitProtection,
   };
 }
 

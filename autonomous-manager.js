@@ -78,7 +78,10 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
     const livePosition = (account?.positions || []).find((position) => position.coin === trade?.symbol) || null;
     if (!trade || !livePosition) continue;
 
-    if (decision.action === "reduce" && decision.reducePct > 0) {
+    if (decision.action === "protect") {
+      actions.push({ tradeId: decision.tradeId, action: decision.action, reason: decision.reason, protection: decision.profitProtection || null });
+      recordExecutionIncident({ kind: "autonomous_manager_profit_protection", tradeId: decision.tradeId, reason: decision.reason });
+    } else if (decision.action === "reduce" && decision.reducePct > 0) {
       const result = await reducePerpPosition({
         symbol: trade.symbol,
         side: trade.side,
