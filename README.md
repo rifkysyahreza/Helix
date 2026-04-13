@@ -66,6 +66,7 @@ Base knowledge direction now includes:
 The analyzer layer now exists for:
 - market structure classification
 - volatility / ATR expansion-compression detection
+- multi-timeframe structure alignment
 - VWAP and value area approximation
 - candle-derived volume profile approximation
 - perp context interpretation from funding / OI / premium

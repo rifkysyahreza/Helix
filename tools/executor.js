@@ -29,6 +29,7 @@ import { analyzeOrderBook } from "../analyzers/order-book.js";
 import { synthesizeMarketAnalysis } from "../analyzers/market-synthesis.js";
 import { summarizeSymbolAnalysis } from "../analyzers/analysis-summary.js";
 import { buildTradePlanFromAnalysis } from "../analyzers/trade-plan.js";
+import { analyzeMultiTimeframe } from "../analyzers/multi-timeframe.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -261,8 +262,10 @@ function extractTradeLessons(trades) {
 async function buildSymbolAnalysis(symbol) {
   const context = await toolMap.get_market_context({ symbols: [symbol] });
   const snapshot = context.symbols[0] || null;
-  const [candles, funding, book] = await Promise.all([
+  const [candles, higherTimeframeCandles, lowerTimeframeCandles, funding, book] = await Promise.all([
     fetchCandles(symbol, config.screening.timeframe).catch(() => []),
+    fetchCandles(symbol, "1h").catch(() => []),
+    fetchCandles(symbol, "5m").catch(() => []),
     fetchFunding(symbol).catch(() => []),
     fetchL2Book(symbol).catch(() => null),
   ]);
@@ -284,6 +287,11 @@ async function buildSymbolAnalysis(symbol) {
   const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
   const structure = analyzeMarketStructure(candles);
   const volatility = analyzeVolatility(candles);
+  const multiTimeframe = analyzeMultiTimeframe({
+    lower: lowerTimeframeCandles,
+    primary: candles,
+    higher: higherTimeframeCandles,
+  });
   const vwapValue = analyzeVwapAndValue(candles);
   const volumeProfile = analyzeVolumeProfile(candles);
   const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
@@ -300,6 +308,7 @@ async function buildSymbolAnalysis(symbol) {
     scored,
     structure,
     volatility,
+    multiTimeframe,
     vwapValue,
     volumeProfile,
     perpContext,
@@ -397,7 +406,7 @@ const toolMap = {
     const scored = analysis.scored;
     const synthesis = analysis.synthesis;
 
-    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored: { ...scored, ...analysis } });
+    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored: { ...scored, ...analysis, multiTimeframe: analysis.multiTimeframe } });
     const tradePlan = buildTradePlanFromAnalysis({
       snapshot,
       analysis,
