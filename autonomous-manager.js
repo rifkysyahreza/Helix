@@ -5,6 +5,9 @@ import { reconcileExecutionLeftovers } from "./reconciliation.js";
 import { escalateRestingEntry, cancelRestingOrder } from "./order-management.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
 import { evaluatePartialFillFollowUp } from "./partial-fill-policy.js";
+import { listRecentTrades } from "./state.js";
+import { evaluateOpenPositions } from "./position-management-policy.js";
+import { reducePerpPosition, closePerpPosition } from "./execution.js";
 
 export async function runAutonomousManagementPass({ autoAct = true } = {}) {
   const account = await getNormalizedAccountState().catch(() => null);
@@ -53,9 +56,41 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
     }
   }
 
+  const openTrades = listRecentTrades(200).filter((trade) => trade.status === "open");
+  const positionDecisions = evaluateOpenPositions({ trades: openTrades, positions: account?.positions || [] });
+
+  for (const decision of positionDecisions) {
+    if (!autoAct || !safety.allowAutonomous) {
+      actions.push({ tradeId: decision.tradeId, action: decision.action, deferred: true, reason: decision.reason });
+      continue;
+    }
+
+    const trade = openTrades.find((item) => item.tradeId === decision.tradeId);
+    const livePosition = (account?.positions || []).find((position) => position.coin === trade?.symbol) || null;
+    if (!trade || !livePosition) continue;
+
+    if (decision.action === "reduce" && decision.reducePct > 0) {
+      const result = await reducePerpPosition({
+        symbol: trade.symbol,
+        side: trade.side,
+        reducePct: decision.reducePct,
+        size: Math.abs(Number(livePosition.szi || 0)) * (decision.reducePct / 100),
+        livePosition,
+        executionTactics: trade.executionState?.executionTactics || null,
+      });
+      actions.push({ tradeId: decision.tradeId, action: decision.action, reducePct: decision.reducePct, reason: decision.reason, result });
+      recordExecutionIncident({ kind: "autonomous_manager_position_reduce", tradeId: decision.tradeId, reducePct: decision.reducePct, reason: decision.reason });
+    } else if (decision.action === "close") {
+      const result = await closePerpPosition({ trade, livePosition, executionTactics: trade.executionState?.executionTactics || null });
+      actions.push({ tradeId: decision.tradeId, action: decision.action, reason: decision.reason, result });
+      recordExecutionIncident({ kind: "autonomous_manager_position_close", tradeId: decision.tradeId, reason: decision.reason });
+    }
+  }
+
   return {
     safety,
     reconciliation,
+    positionDecisions,
     actions,
   };
 }

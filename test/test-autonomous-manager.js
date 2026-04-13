@@ -25,6 +25,7 @@ async function run() {
   const result = await runAutonomousManagementPass({ autoAct: false });
   assert.ok(Array.isArray(result.actions));
   assert.equal(result.actions.length >= 1, true);
+  assert.ok(Array.isArray(result.positionDecisions));
 
   updateTradeExecutionState(trade.tradeId, {
     restingOrderActive: false,
