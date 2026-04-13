@@ -8,8 +8,11 @@ import { agentLoop } from "./agent.js";
 import { buildHealthSummary } from "./health-summary.js";
 import { haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol, getOperatorControls } from "./operator-controls.js";
 import { runAutonomousManagementPass } from "./autonomous-manager.js";
+import { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } from "./runtime-resilience.js";
 
 log("startup", "Helix starting...");
+const runtimeResilience = markRuntimeStart();
+log("startup", `Runtime resilience: ${JSON.stringify(runtimeResilience)}`);
 log("startup", `Mode: ${process.env.DRY_RUN === "true" ? "DRY RUN" : "LIVE"}`);
 log("startup", `LLM runtime: ${config.llm.runtime}`);
 log("startup", `Model: ${process.env.LLM_MODEL || process.env.OPENCLAW_MODEL || "openai-codex/gpt-5.4"}`);
@@ -30,6 +33,7 @@ try {
 }
 
 async function runObserverCycle() {
+  markRuntimeHeartbeat();
   log("cron", "Observer cycle");
   const result = await agentLoop(
     "Check current market context and summarize the top futures setups worth watching right now.",
@@ -44,6 +48,7 @@ async function runObserverCycle() {
 }
 
 async function runReviewCycle() {
+  markRuntimeHeartbeat();
   log("cron", "Review cycle");
   const result = await agentLoop(
     "Review recent Helix journal notes and summarize the most important lessons.",
@@ -58,7 +63,9 @@ async function runReviewCycle() {
 }
 
 async function runManagementCycle() {
-  log("cron", "Management cycle");
+  markRuntimeHeartbeat();
+  const watchdog = evaluateRuntimeWatchdog();
+  log("cron", `Management cycle (watchdog stale=${watchdog.stale})`);
   const maintenance = await runAutonomousManagementPass({ autoAct: true }).catch((error) => ({ error: error.message }));
   log("cycle", `Management maintenance: ${JSON.stringify(maintenance).slice(0, 300)}`);
 
@@ -116,6 +123,7 @@ rl.on("line", async (line) => {
         executionMode: config.execution.mode,
         schedule: config.schedule,
         operatorControls: getOperatorControls(),
+        runtimeResilience: evaluateRuntimeWatchdog(),
       }, null, 2));
     } else if (input === "/health") {
       console.log(JSON.stringify(await buildHealthSummary({ limit: 100 }), null, 2));
