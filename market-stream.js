@@ -1,9 +1,11 @@
 import { SubscriptionClient, WebSocketTransport } from "@nktkas/hyperliquid";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot } from "./market-stream-state.js";
 import { appendMicrostructureSample } from "./microstructure-state.js";
+import { appendTrades } from "./trade-stream-state.js";
 
 let subscriptionClient = null;
 let subscribedSymbols = new Set();
+let tradeSubscribedSymbols = new Set();
 
 function ensureClient() {
   if (!subscriptionClient) {
@@ -47,6 +49,25 @@ export async function subscribeSymbolOrderBook(symbol) {
   return { subscribed: true, symbol: upper, snapshot: getMarketStreamSnapshot(upper) };
 }
 
+export async function subscribeSymbolTrades(symbol) {
+  const upper = String(symbol || "").toUpperCase();
+  if (!upper) return { subscribed: false, error: "symbol is required" };
+  if (tradeSubscribedSymbols.has(upper)) {
+    return { subscribed: true, symbol: upper, existing: true };
+  }
+
+  const client = ensureClient();
+  await client.trades({ coin: upper }, (data) => {
+    appendTrades(upper, data || []);
+  });
+
+  tradeSubscribedSymbols.add(upper);
+  return { subscribed: true, symbol: upper };
+}
+
 export function listSubscribedSymbols() {
-  return Array.from(subscribedSymbols);
+  return {
+    orderBooks: Array.from(subscribedSymbols),
+    trades: Array.from(tradeSubscribedSymbols),
+  };
 }

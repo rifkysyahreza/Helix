@@ -32,9 +32,11 @@ import { buildTradePlanFromAnalysis } from "../analyzers/trade-plan.js";
 import { analyzeMultiTimeframe } from "../analyzers/multi-timeframe.js";
 import { evaluateTradeVeto } from "../analyzers/trade-veto.js";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSnapshots } from "../market-stream-state.js";
-import { subscribeSymbolOrderBook, listSubscribedSymbols } from "../market-stream.js";
+import { subscribeSymbolOrderBook, subscribeSymbolTrades, listSubscribedSymbols } from "../market-stream.js";
 import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
 import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
+import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state.js";
+import { analyzeTradeFlow } from "../analyzers/trade-flow.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -301,8 +303,9 @@ async function buildSymbolAnalysis(symbol) {
   const volumeProfile = analyzeVolumeProfile(candles);
   const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
   const orderBook = analyzeOrderBook(book);
+  const tradeFlow = analyzeTradeFlow(getTradeStreamState(symbol).trades);
   const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
-  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis }, requestedSide: synthesis.bias === "short" ? "short" : "long" });
+  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, tradeFlow }, requestedSide: synthesis.bias === "short" ? "short" : "long" });
 
   updateMarketStreamSnapshot(symbol, {
     bookImbalance,
@@ -328,6 +331,7 @@ async function buildSymbolAnalysis(symbol) {
     perpContext,
     orderBook,
     synthesis,
+    tradeFlow,
     tradeVeto,
     streamSnapshot: getMarketStreamSnapshot(symbol),
   };
@@ -367,6 +371,31 @@ const toolMap = {
       ...result,
       subscribedSymbols: listSubscribedSymbols(),
     };
+  },
+
+  async subscribe_symbol_trades({ symbol }) {
+    const result = await subscribeSymbolTrades(symbol);
+    return {
+      ...result,
+      subscribedSymbols: listSubscribedSymbols(),
+    };
+  },
+
+  async get_trade_flow_state({ symbol } = {}) {
+    if (symbol) {
+      const upper = String(symbol).toUpperCase();
+      const state = getTradeStreamState(upper);
+      return {
+        symbol: upper,
+        trades: state.trades,
+        summary: analyzeTradeFlow(state.trades),
+      };
+    }
+    const state = listTradeStreamState();
+    const summaries = Object.fromEntries(
+      Object.entries(state.symbols || {}).map(([sym, payload]) => [sym, analyzeTradeFlow(payload.trades || [])]),
+    );
+    return { state, summaries };
   },
 
   async get_microstructure_state({ symbol } = {}) {

@@ -47,6 +47,33 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "subscribe_symbol_trades",
+      description: "Start a native Hyperliquid websocket trades subscription for a symbol and store rolling local trade-flow state.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" }
+        },
+        required: ["symbol"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_trade_flow_state",
+      description: "Return rolling local trade-flow samples and derived delta-style summary for symbols.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_microstructure_state",
       description: "Return rolling local microstructure samples and derived summary for subscribed symbols.",
       parameters: {
