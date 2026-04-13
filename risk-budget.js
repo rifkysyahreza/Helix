@@ -1,3 +1,5 @@
+import { buildPortfolioRiskProfile } from "./portfolio-risk.js";
+
 export function buildRiskBudget({ account = null, proposedSizeUsd = null }) {
   const withdrawable = account?.withdrawable != null ? Number(account.withdrawable) : null;
   const accountValue = account?.marginSummary?.accountValue != null ? Number(account.marginSummary.accountValue) : null;
@@ -7,6 +9,8 @@ export function buildRiskBudget({ account = null, proposedSizeUsd = null }) {
   const maxBudgetUsd = capitalBase != null ? capitalBase * 0.1 : null;
   const hardCapUsd = capitalBase != null ? capitalBase * 0.2 : null;
   const utilization = capitalBase && marginUsed != null ? marginUsed / capitalBase : null;
+
+  const portfolio = buildPortfolioRiskProfile({ account });
 
   let cappedSizeUsd = proposedSizeUsd;
   let budgetBias = "normal";
@@ -30,6 +34,18 @@ export function buildRiskBudget({ account = null, proposedSizeUsd = null }) {
     note = `Margin utilization is elevated (${(utilization * 100).toFixed(1)}%), so Helix reduced size further.`;
   }
 
+  if (portfolio.autonomyLevel === "degraded") {
+    cappedSizeUsd = cappedSizeUsd != null ? cappedSizeUsd * 0.75 : cappedSizeUsd;
+    budgetBias = "portfolio_degraded";
+    note = `Portfolio risk is degraded (${portfolio.reasons.join(", ")}), so Helix reduced size further.`;
+  }
+
+  if (portfolio.autonomyLevel === "halt_new_entries") {
+    cappedSizeUsd = 0;
+    budgetBias = "portfolio_hard_brake";
+    note = `Portfolio risk hard brake active (${portfolio.reasons.join(", ")}), so Helix blocked new size.`;
+  }
+
   return {
     capitalBase,
     withdrawable,
@@ -40,6 +56,7 @@ export function buildRiskBudget({ account = null, proposedSizeUsd = null }) {
     hardCapUsd,
     budgetBias,
     note,
+    portfolio,
     cappedSizeUsd: cappedSizeUsd != null ? Number(cappedSizeUsd.toFixed(2)) : null,
   };
 }

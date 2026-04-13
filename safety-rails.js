@@ -1,4 +1,5 @@
 import { listRecentTrades } from "./state.js";
+import { buildPortfolioRiskProfile } from "./portfolio-risk.js";
 
 export function evaluateAutonomousSafety({ account = null, symbol = null, executionReliability = null }) {
   const recentTrades = listRecentTrades(100);
@@ -10,6 +11,8 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
   const withdrawable = account?.withdrawable != null ? Number(account.withdrawable) : null;
   const accountValue = account?.marginSummary?.accountValue != null ? Number(account.marginSummary.accountValue) : null;
   const capitalBase = withdrawable ?? accountValue ?? null;
+
+  const portfolio = buildPortfolioRiskProfile({ account });
 
   let allowAutonomous = true;
   const reasons = [];
@@ -39,12 +42,21 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
     reasons.push("execution_error_streak");
   }
 
+  if (portfolio.autonomyLevel === "degraded") {
+    reasons.push(...portfolio.reasons);
+  }
+  if (portfolio.autonomyLevel === "halt_new_entries") {
+    allowAutonomous = false;
+    reasons.push(...portfolio.reasons);
+  }
+
   return {
     symbol,
     allowAutonomous,
-    reasons,
+    reasons: Array.from(new Set(reasons)),
     recentAvgPnl,
     capitalBase,
     executionReliability,
+    portfolio,
   };
 }
