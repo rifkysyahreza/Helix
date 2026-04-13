@@ -256,6 +256,56 @@ function extractTradeLessons(trades) {
   return lessons;
 }
 
+async function buildSymbolAnalysis(symbol) {
+  const context = await toolMap.get_market_context({ symbols: [symbol] });
+  const snapshot = context.symbols[0] || null;
+  const [candles, funding, book] = await Promise.all([
+    fetchCandles(symbol, config.screening.timeframe).catch(() => []),
+    fetchFunding(symbol).catch(() => []),
+    fetchL2Book(symbol).catch(() => null),
+  ]);
+
+  const firstCandle = candles?.[0];
+  const lastCandle = candles?.[candles.length - 1];
+  const candleMomentumPct = firstCandle && lastCandle
+    ? ((Number(lastCandle.c) - Number(firstCandle.o)) / Number(firstCandle.o)) * 100
+    : null;
+  const fundingTrend = Array.isArray(funding) && funding.length
+    ? Number(funding[funding.length - 1].fundingRate)
+    : null;
+  const bids = book?.levels?.[0] || [];
+  const asks = book?.levels?.[1] || [];
+  const bidSz = bids.reduce((sum, level) => sum + Number(level.sz || 0), 0);
+  const askSz = asks.reduce((sum, level) => sum + Number(level.sz || 0), 0);
+  const bookImbalance = (bidSz + askSz) > 0 ? (bidSz - askSz) / (bidSz + askSz) : null;
+
+  const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
+  const structure = analyzeMarketStructure(candles);
+  const volatility = analyzeVolatility(candles);
+  const vwapValue = analyzeVwapAndValue(candles);
+  const volumeProfile = analyzeVolumeProfile(candles);
+  const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
+  const orderBook = analyzeOrderBook(book);
+  const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
+
+  return {
+    snapshot,
+    candlesCount: candles.length,
+    fundingPoints: Array.isArray(funding) ? funding.length : 0,
+    candleMomentumPct,
+    fundingTrend,
+    bookImbalance,
+    scored,
+    structure,
+    volatility,
+    vwapValue,
+    volumeProfile,
+    perpContext,
+    orderBook,
+    synthesis,
+  };
+}
+
 const toolMap = {
   async get_market_context({ symbols } = {}) {
     const watch = symbols?.length ? symbols : defaultSymbols();
@@ -268,6 +318,17 @@ const toolMap = {
     return {
       source: "hyperliquid",
       symbols: snapshots,
+    };
+  },
+
+  async analyze_symbol({ symbol }) {
+    if (!symbol) return { error: "symbol is required" };
+    const upper = String(symbol).toUpperCase();
+    return {
+      symbol: upper,
+      timeframe: config.screening.timeframe,
+      regime: config.screening.regime,
+      analysis: await buildSymbolAnalysis(upper),
     };
   },
 
@@ -291,54 +352,27 @@ const toolMap = {
   async rank_trade_setups({ symbols } = {}) {
     const context = await toolMap.get_market_context({ symbols });
     const candidates = await Promise.all(context.symbols.map(async (snapshot) => {
-      const [candles, funding, book] = await Promise.all([
-        fetchCandles(snapshot.symbol, config.screening.timeframe).catch(() => []),
-        fetchFunding(snapshot.symbol).catch(() => []),
-        fetchL2Book(snapshot.symbol).catch(() => null),
-      ]);
-
-      const firstCandle = candles?.[0];
-      const lastCandle = candles?.[candles.length - 1];
-      const candleMomentumPct = firstCandle && lastCandle
-        ? ((Number(lastCandle.c) - Number(firstCandle.o)) / Number(firstCandle.o)) * 100
-        : null;
-      const fundingTrend = Array.isArray(funding) && funding.length
-        ? Number(funding[funding.length - 1].fundingRate)
-        : null;
-      const bids = book?.levels?.[0] || [];
-      const asks = book?.levels?.[1] || [];
-      const bidSz = bids.reduce((sum, level) => sum + Number(level.sz || 0), 0);
-      const askSz = asks.reduce((sum, level) => sum + Number(level.sz || 0), 0);
-      const bookImbalance = (bidSz + askSz) > 0 ? (bidSz - askSz) / (bidSz + askSz) : null;
-
-      const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
-      const structure = analyzeMarketStructure(candles);
-      const volatility = analyzeVolatility(candles);
-      const vwapValue = analyzeVwapAndValue(candles);
-      const volumeProfile = analyzeVolumeProfile(candles);
-      const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
-      const orderBook = analyzeOrderBook(book);
-      const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
+      const analysis = await buildSymbolAnalysis(snapshot.symbol);
 
       return {
         symbol: snapshot.symbol,
-        verdict: synthesis.bias === "long" || synthesis.bias === "short" ? "tradeable" : synthesis.bias.startsWith("watch") ? "watch" : scored.setupQuality,
-        sideBias: synthesis.bias,
-        score: Number((scored.score + synthesis.longScore - synthesis.shortScore).toFixed(2)),
-        reasons: [...scored.reasons, ...synthesis.reasons],
-        riskFlags: synthesis.riskFlags,
-        confidence: synthesis.confidence,
-        executionQuality: synthesis.executionQuality,
-        location: synthesis.location,
-        crowding: synthesis.crowding,
+        verdict: analysis.synthesis.bias === "long" || analysis.synthesis.bias === "short" ? "tradeable" : analysis.synthesis.bias.startsWith("watch") ? "watch" : analysis.scored.setupQuality,
+        sideBias: analysis.synthesis.bias,
+        score: Number((analysis.scored.score + analysis.synthesis.longScore - analysis.synthesis.shortScore).toFixed(2)),
+        reasons: [...analysis.scored.reasons, ...analysis.synthesis.reasons],
+        riskFlags: analysis.synthesis.riskFlags,
+        confidence: analysis.synthesis.confidence,
+        executionQuality: analysis.synthesis.executionQuality,
+        location: analysis.synthesis.location,
+        crowding: analysis.synthesis.crowding,
         funding: snapshot.funding,
         openInterest: snapshot.openInterest,
         dayNtlVlm: snapshot.dayNtlVlm,
         premium: snapshot.premium,
-        candleMomentumPct,
-        fundingTrend,
-        bookImbalance,
-        analyzers: { structure, volatility, vwapValue, volumeProfile, perpContext, orderBook, synthesis },
+        candleMomentumPct: analysis.candleMomentumPct,
+        fundingTrend: analysis.fundingTrend,
+        bookImbalance: analysis.bookImbalance,
+        analyzers: analysis,
         note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, and L2 book data.",
       };
     }));
@@ -354,36 +388,11 @@ const toolMap = {
   async propose_trade({ symbol, side }) {
     const context = await toolMap.get_market_context({ symbols: [symbol] });
     const snapshot = context.symbols[0] || null;
-    const [candles, funding, book] = await Promise.all([
-      fetchCandles(symbol, config.screening.timeframe).catch(() => []),
-      fetchFunding(symbol).catch(() => []),
-      fetchL2Book(symbol).catch(() => null),
-    ]);
+    const analysis = await buildSymbolAnalysis(symbol);
+    const scored = analysis.scored;
+    const synthesis = analysis.synthesis;
 
-    const firstCandle = candles?.[0];
-    const lastCandle = candles?.[candles.length - 1];
-    const candleMomentumPct = firstCandle && lastCandle
-      ? ((Number(lastCandle.c) - Number(firstCandle.o)) / Number(firstCandle.o)) * 100
-      : null;
-    const fundingTrend = Array.isArray(funding) && funding.length
-      ? Number(funding[funding.length - 1].fundingRate)
-      : null;
-    const bids = book?.levels?.[0] || [];
-    const asks = book?.levels?.[1] || [];
-    const bidSz = bids.reduce((sum, level) => sum + Number(level.sz || 0), 0);
-    const askSz = asks.reduce((sum, level) => sum + Number(level.sz || 0), 0);
-    const bookImbalance = (bidSz + askSz) > 0 ? (bidSz - askSz) / (bidSz + askSz) : null;
-
-    const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
-    const structure = analyzeMarketStructure(candles);
-    const volatility = analyzeVolatility(candles);
-    const vwapValue = analyzeVwapAndValue(candles);
-    const volumeProfile = analyzeVolumeProfile(candles);
-    const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
-    const orderBook = analyzeOrderBook(book);
-    const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
-
-    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored: { ...scored, synthesis, structure, volatility, vwapValue, volumeProfile, perpContext, orderBook } });
+    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored: { ...scored, ...analysis } });
 
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
@@ -414,7 +423,7 @@ const toolMap = {
       riskBudget,
       snapshot,
       scored,
-      analyzers: { structure, volatility, vwapValue, volumeProfile, perpContext, orderBook, synthesis },
+      analyzers: analysis,
     };
   },
 

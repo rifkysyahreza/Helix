@@ -19,6 +19,20 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "analyze_symbol",
+      description: "Run the full perp analysis stack for one symbol, including structure, volatility, value, profile, perp context, order-book quality, and synthesis.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "Market symbol like BTC, ETH, or SOL." }
+        },
+        required: ["symbol"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "list_account_state",
       description: "Return current Helix account state, including dry-run status, open positions, open orders, and key risk limits.",
       parameters: {
