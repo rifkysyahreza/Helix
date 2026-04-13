@@ -140,6 +140,19 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "run_autonomous_management",
+      description: "Run deterministic autonomous management follow-ups like resting-order escalation and partial-fill maintenance, gated by safety rails.",
+      parameters: {
+        type: "object",
+        properties: {
+          autoAct: { type: "boolean" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_market_stream_state",
       description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
       parameters: {

@@ -7,6 +7,7 @@ import { log } from "./logger.js";
 import { agentLoop } from "./agent.js";
 import { buildHealthSummary } from "./health-summary.js";
 import { haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol, getOperatorControls } from "./operator-controls.js";
+import { runAutonomousManagementPass } from "./autonomous-manager.js";
 
 log("startup", "Helix starting...");
 log("startup", `Mode: ${process.env.DRY_RUN === "true" ? "DRY RUN" : "LIVE"}`);
@@ -58,6 +59,9 @@ async function runReviewCycle() {
 
 async function runManagementCycle() {
   log("cron", "Management cycle");
+  const maintenance = await runAutonomousManagementPass({ autoAct: true }).catch((error) => ({ error: error.message }));
+  log("cycle", `Management maintenance: ${JSON.stringify(maintenance).slice(0, 300)}`);
+
   const result = await agentLoop(
     "Evaluate current open Hyperliquid positions, suggest hold/reduce/close actions, and summarize what matters most right now.",
     config.llm.maxSteps,
@@ -87,7 +91,7 @@ cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
 });
 
 console.log("\nHelix runtime is live.");
-console.log("Commands: /status, /health, /audit, /drill, /burn-in start [paper|approval], /burn-in stop, /burn-in status, /watch, /manage, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("Commands: /status, /health, /audit, /drill, /burn-in start [paper|approval], /burn-in stop, /burn-in status, /watch, /manage, /maintain, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -191,6 +195,8 @@ rl.on("line", async (line) => {
         { requireTool: true },
       );
       console.log(result.content || "No response.");
+    } else if (input === "/maintain") {
+      console.log(JSON.stringify(await runAutonomousManagementPass({ autoAct: true }), null, 2));
     } else if (input === "/pending") {
       const result = await agentLoop(
         "List current pending Helix approval intents and summarize the most urgent ones.",

@@ -51,6 +51,7 @@ import { startBurnIn, stopBurnIn, summarizeBurnInState } from "../burn-in.js";
 import { scanStaleRestingOrders, markRestingOrderPlaced } from "../resting-orders.js";
 import { evaluateRestingOrderEscalation } from "../resting-order-policy.js";
 import { cancelRestingOrder, escalateRestingEntry } from "../order-management.js";
+import { runAutonomousManagementPass } from "../autonomous-manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -454,6 +455,10 @@ const toolMap = {
   async escalate_resting_order({ tradeId }) {
     if (!tradeId) return { error: "tradeId is required" };
     return escalateRestingEntry({ tradeId });
+  },
+
+  async run_autonomous_management({ autoAct = true } = {}) {
+    return runAutonomousManagementPass({ autoAct });
   },
 
   async list_account_state() {
