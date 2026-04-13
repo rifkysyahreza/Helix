@@ -10,6 +10,7 @@ import { getNormalizedAccountState } from "./account-state.js";
 import { summarizeExecutionIncidents } from "./execution-incidents.js";
 import { evaluateRuntimeWatchdog, getRuntimeResilienceState } from "./runtime-resilience.js";
 import { runStartupRecovery } from "./startup-recovery.js";
+import { evaluateStreamHealth } from "./stream-health.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
   const trades = listRecentTrades(limit);
@@ -24,6 +25,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const runtimeResilience = getRuntimeResilienceState();
   const watchdog = evaluateRuntimeWatchdog();
   const startupRecoveryPreview = await runStartupRecovery({ autoAct: false }).catch(() => null);
+  const streamHealth = evaluateStreamHealth();
 
   const openTrades = trades.filter((trade) => trade.status === "open");
   const closedTrades = trades.filter((trade) => trade.status === "closed");
@@ -41,6 +43,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   summaryLines.push(`Go-live recommendation: ${goLive?.recommendedMode || "unknown"}`);
   summaryLines.push(`Execution incidents: ${incidents.total}`);
   summaryLines.push(`Runtime watchdog stale: ${watchdog.stale}`);
+  summaryLines.push(`Stream health healthy: ${streamHealth.healthy}`);
 
   if (reliability.worstSymbols?.length) {
     summaryLines.push(`Weakest execution reliability: ${reliability.worstSymbols.map((row) => `${row.symbol}:${row.reliabilityScore}`).join(" | ")}`);
@@ -69,6 +72,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     runtimeResilience,
     watchdog,
     startupRecoveryPreview,
+    streamHealth,
     performance: perf,
     summaryLines,
   };

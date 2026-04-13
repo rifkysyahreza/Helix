@@ -170,6 +170,30 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_stream_health",
+      description: "Inspect whether managed live stream coverage is stale or missing for required symbols.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "repair_stream_health",
+      description: "Repair stale or missing managed stream subscriptions for required symbols.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "ensure_managed_streams",
       description: "Ensure all configured and open-trade symbols have live order book and trade stream subscriptions.",
       parameters: {

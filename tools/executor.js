@@ -34,6 +34,7 @@ import { evaluateTradeVeto } from "../analyzers/trade-veto.js";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSnapshots } from "../market-stream-state.js";
 import { subscribeSymbolOrderBook, subscribeSymbolTrades, listSubscribedSymbols } from "../market-stream.js";
 import { ensureManagedStreams, buildManagedWatchlist } from "../stream-watchlist-manager.js";
+import { evaluateStreamHealth, repairStreamHealth } from "../stream-health.js";
 import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
 import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
 import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state.js";
@@ -443,6 +444,14 @@ const toolMap = {
 
   async ensure_managed_streams() {
     return ensureManagedStreams();
+  },
+
+  async get_stream_health() {
+    return evaluateStreamHealth();
+  },
+
+  async repair_stream_health() {
+    return repairStreamHealth();
   },
 
   async scan_resting_orders() {
