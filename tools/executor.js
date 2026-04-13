@@ -20,6 +20,13 @@ import { inferExecutionPhase, deriveExchangePhase } from "../execution-state-mac
 import { buildExecutionReliabilitySummary } from "../execution-reliability.js";
 import { listExecutionIncidents } from "../execution-incidents.js";
 import { buildCompoundingContext } from "../compounding.js";
+import { analyzeMarketStructure } from "../analyzers/market-structure.js";
+import { analyzeVolatility } from "../analyzers/volatility.js";
+import { analyzeVwapAndValue } from "../analyzers/vwap-value.js";
+import { analyzeVolumeProfile } from "../analyzers/volume-profile.js";
+import { analyzePerpContext } from "../analyzers/perp-context.js";
+import { analyzeOrderBook } from "../analyzers/order-book.js";
+import { synthesizeMarketAnalysis } from "../analyzers/market-synthesis.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -305,12 +312,25 @@ const toolMap = {
       const bookImbalance = (bidSz + askSz) > 0 ? (bidSz - askSz) / (bidSz + askSz) : null;
 
       const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
+      const structure = analyzeMarketStructure(candles);
+      const volatility = analyzeVolatility(candles);
+      const vwapValue = analyzeVwapAndValue(candles);
+      const volumeProfile = analyzeVolumeProfile(candles);
+      const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
+      const orderBook = analyzeOrderBook(book);
+      const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
+
       return {
         symbol: snapshot.symbol,
-        verdict: scored.setupQuality,
-        sideBias: scored.sideBias,
-        score: scored.score,
-        reasons: scored.reasons,
+        verdict: synthesis.bias === "long" || synthesis.bias === "short" ? "tradeable" : synthesis.bias.startsWith("watch") ? "watch" : scored.setupQuality,
+        sideBias: synthesis.bias,
+        score: Number((scored.score + synthesis.longScore - synthesis.shortScore).toFixed(2)),
+        reasons: [...scored.reasons, ...synthesis.reasons],
+        riskFlags: synthesis.riskFlags,
+        confidence: synthesis.confidence,
+        executionQuality: synthesis.executionQuality,
+        location: synthesis.location,
+        crowding: synthesis.crowding,
         funding: snapshot.funding,
         openInterest: snapshot.openInterest,
         dayNtlVlm: snapshot.dayNtlVlm,
@@ -318,7 +338,8 @@ const toolMap = {
         candleMomentumPct,
         fundingTrend,
         bookImbalance,
-        note: "Helix heuristic now includes candles, funding history, and L2 book context via SDK.",
+        analyzers: { structure, volatility, vwapValue, volumeProfile, perpContext, orderBook, synthesis },
+        note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, and L2 book data.",
       };
     }));
 
@@ -333,13 +354,41 @@ const toolMap = {
   async propose_trade({ symbol, side }) {
     const context = await toolMap.get_market_context({ symbols: [symbol] });
     const snapshot = context.symbols[0] || null;
-    const scored = scoreSnapshot(snapshot);
+    const [candles, funding, book] = await Promise.all([
+      fetchCandles(symbol, config.screening.timeframe).catch(() => []),
+      fetchFunding(symbol).catch(() => []),
+      fetchL2Book(symbol).catch(() => null),
+    ]);
 
-    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored });
+    const firstCandle = candles?.[0];
+    const lastCandle = candles?.[candles.length - 1];
+    const candleMomentumPct = firstCandle && lastCandle
+      ? ((Number(lastCandle.c) - Number(firstCandle.o)) / Number(firstCandle.o)) * 100
+      : null;
+    const fundingTrend = Array.isArray(funding) && funding.length
+      ? Number(funding[funding.length - 1].fundingRate)
+      : null;
+    const bids = book?.levels?.[0] || [];
+    const asks = book?.levels?.[1] || [];
+    const bidSz = bids.reduce((sum, level) => sum + Number(level.sz || 0), 0);
+    const askSz = asks.reduce((sum, level) => sum + Number(level.sz || 0), 0);
+    const bookImbalance = (bidSz + askSz) > 0 ? (bidSz - askSz) / (bidSz + askSz) : null;
+
+    const scored = scoreSnapshot(snapshot, { candleMomentumPct, fundingTrend, bookImbalance });
+    const structure = analyzeMarketStructure(candles);
+    const volatility = analyzeVolatility(candles);
+    const vwapValue = analyzeVwapAndValue(candles);
+    const volumeProfile = analyzeVolumeProfile(candles);
+    const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
+    const orderBook = analyzeOrderBook(book);
+    const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
+
+    const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored: { ...scored, synthesis, structure, volatility, vwapValue, volumeProfile, perpContext, orderBook } });
 
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
-    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1)).toFixed(2));
+    const synthesisSizeBias = synthesis.bias === "no_trade" ? 0.5 : synthesis.confidence >= 0.7 ? 1.1 : 1;
+    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1) * synthesisSizeBias).toFixed(2));
     const riskBudget = buildRiskBudget({ account: liveAccount, proposedSizeUsd });
 
     return {
@@ -350,7 +399,11 @@ const toolMap = {
       operatorKnowledge: builtThesis.operatorKnowledge,
       symbolProfile: builtThesis.symbolProfile,
       learnedSymbolBelief: builtThesis.learnedSymbolBelief,
-      invalidation: `Default stop at ${config.execution.stopLossPct}% until richer structure logic is implemented.`,
+      invalidation: synthesis.location === "above_value"
+        ? `Lose acceptance above value / VWAP and cut risk. Default hard stop still ${config.execution.stopLossPct}%.`
+        : synthesis.location === "below_value"
+          ? `Lose acceptance below value / VWAP and cut risk. Default hard stop still ${config.execution.stopLossPct}%.`
+          : `Inside value means weaker location. Default hard stop ${config.execution.stopLossPct}% until richer execution logic is added.`,
       takeProfit: config.execution.takeProfitPct,
       stopLoss: config.execution.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
@@ -361,6 +414,7 @@ const toolMap = {
       riskBudget,
       snapshot,
       scored,
+      analyzers: { structure, volatility, vwapValue, volumeProfile, perpContext, orderBook, synthesis },
     };
   },
 
