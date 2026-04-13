@@ -30,6 +30,8 @@ import { synthesizeMarketAnalysis } from "../analyzers/market-synthesis.js";
 import { summarizeSymbolAnalysis } from "../analyzers/analysis-summary.js";
 import { buildTradePlanFromAnalysis } from "../analyzers/trade-plan.js";
 import { analyzeMultiTimeframe } from "../analyzers/multi-timeframe.js";
+import { evaluateTradeVeto } from "../analyzers/trade-veto.js";
+import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSnapshots } from "../market-stream-state.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -297,6 +299,15 @@ async function buildSymbolAnalysis(symbol) {
   const perpContext = analyzePerpContext({ snapshot, fundingHistory: funding });
   const orderBook = analyzeOrderBook(book);
   const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
+  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis }, requestedSide: synthesis.bias === "short" ? "short" : "long" });
+
+  updateMarketStreamSnapshot(symbol, {
+    bookImbalance,
+    fundingTrend,
+    candleMomentumPct,
+    executionQuality: orderBook.executionQuality,
+    synthesisBias: synthesis.bias,
+  });
 
   return {
     snapshot,
@@ -314,6 +325,8 @@ async function buildSymbolAnalysis(symbol) {
     perpContext,
     orderBook,
     synthesis,
+    tradeVeto,
+    streamSnapshot: getMarketStreamSnapshot(symbol),
   };
 }
 
@@ -345,6 +358,10 @@ const toolMap = {
     };
   },
 
+  async get_market_stream_state() {
+    return listMarketStreamSnapshots();
+  },
+
   async list_account_state() {
     const normalized = await getNormalizedAccountState();
 
@@ -369,11 +386,12 @@ const toolMap = {
 
       return {
         symbol: snapshot.symbol,
-        verdict: analysis.synthesis.bias === "long" || analysis.synthesis.bias === "short" ? "tradeable" : analysis.synthesis.bias.startsWith("watch") ? "watch" : analysis.scored.setupQuality,
+        verdict: !analysis.tradeVeto.allowed ? "skip" : analysis.synthesis.bias === "long" || analysis.synthesis.bias === "short" ? "tradeable" : analysis.synthesis.bias.startsWith("watch") ? "watch" : analysis.scored.setupQuality,
         sideBias: analysis.synthesis.bias,
         score: Number((analysis.scored.score + analysis.synthesis.longScore - analysis.synthesis.shortScore).toFixed(2)),
         reasons: [...analysis.scored.reasons, ...analysis.synthesis.reasons],
         riskFlags: analysis.synthesis.riskFlags,
+        tradeVeto: analysis.tradeVeto,
         confidence: analysis.synthesis.confidence,
         executionQuality: analysis.synthesis.executionQuality,
         location: analysis.synthesis.location,
@@ -425,6 +443,7 @@ const toolMap = {
       symbol,
       side,
       mode: process.env.DRY_RUN === "true" ? "dry-run" : "live",
+      tradeVeto: analysis.tradeVeto,
       thesis: builtThesis.thesis,
       analysisSummary: summarizeSymbolAnalysis(analysis),
       operatorKnowledge: builtThesis.operatorKnowledge,
@@ -436,7 +455,7 @@ const toolMap = {
       stopLoss: tradePlan.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
       executionNotes: tradePlan.executionNotes,
-      sizeUsd: riskBudget.cappedSizeUsd ?? proposedSizeUsd,
+      sizeUsd: analysis.tradeVeto.allowed ? (riskBudget.cappedSizeUsd ?? proposedSizeUsd) : 0,
       proposedSizeUsd,
       confidenceAdjustment: builtThesis.confidenceAdjustment,
       compounding,

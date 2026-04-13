@@ -33,6 +33,17 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_market_stream_state",
+      description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "list_account_state",
       description: "Return current Helix account state, including dry-run status, open positions, open orders, and key risk limits.",
       parameters: {
