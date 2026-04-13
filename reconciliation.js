@@ -1,6 +1,7 @@
 import { getNormalizedAccountState } from "./account-state.js";
 import { listRecentTrades, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
+import { evaluateRestingOrderEscalation } from "./resting-order-policy.js";
 
 function shouldMarkTradeFlat(trade, position) {
   if (position) return false;
@@ -20,6 +21,8 @@ export async function reconcileExecutionLeftovers(limit = 200) {
   const updates = [];
   const drifts = [];
   const lifecycleRepairs = [];
+
+  const restingFollowUps = [];
 
   for (const trade of trades) {
     const position = positionsByCoin.get(trade.symbol) || null;
@@ -79,6 +82,11 @@ export async function reconcileExecutionLeftovers(limit = 200) {
       lifecycleRepairs.push(repair);
       recordExecutionIncident({ kind: "reconciliation_repair_flagged_live_position_on_closed_trade", ...repair });
     }
+
+    if (trade.status === "open" && trade.executionState?.restingOrderActive) {
+      const followUp = evaluateRestingOrderEscalation(trade.tradeId);
+      if (followUp?.escalate) restingFollowUps.push(followUp);
+    }
   }
 
   return {
@@ -86,5 +94,6 @@ export async function reconcileExecutionLeftovers(limit = 200) {
     updates,
     drifts,
     lifecycleRepairs,
+    restingFollowUps,
   };
 }

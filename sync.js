@@ -83,6 +83,8 @@ export async function syncTradesWithExchange(limit = 50) {
       historicalStatus: executionSnapshot.historicalStatus,
       restingOrderActive: executionSnapshot.hasOpenOrder,
       restingOrderStale: executionSnapshot.hasOpenOrder ? (trade.executionState?.restingOrderStale || false) : false,
+      restingOrderEscalationNeeded: executionSnapshot.hasOpenOrder ? (trade.executionState?.restingOrderEscalationNeeded || false) : false,
+      restingOrderTerminal: !executionSnapshot.hasOpenOrder && ["filled", "partially_filled", "cancelled"].includes(executionSnapshot.exchangeState),
     });
 
     const nextLifecyclePhase = deriveExchangePhase({

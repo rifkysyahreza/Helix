@@ -49,6 +49,7 @@ import { evaluateOperatorActionGate, getOperatorControls, haltTrading, resumeTra
 import { buildHealthSummary } from "../health-summary.js";
 import { startBurnIn, stopBurnIn, summarizeBurnInState } from "../burn-in.js";
 import { scanStaleRestingOrders, markRestingOrderPlaced } from "../resting-orders.js";
+import { evaluateRestingOrderEscalation } from "../resting-order-policy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -437,6 +438,11 @@ const toolMap = {
 
   async scan_resting_orders() {
     return scanStaleRestingOrders();
+  },
+
+  async evaluate_resting_order({ tradeId }) {
+    if (!tradeId) return { error: "tradeId is required" };
+    return evaluateRestingOrderEscalation(tradeId);
   },
 
   async list_account_state() {

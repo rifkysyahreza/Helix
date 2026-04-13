@@ -98,6 +98,20 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "evaluate_resting_order",
+      description: "Evaluate whether a tracked resting order should be escalated or followed up due to staleness or partial fill state.",
+      parameters: {
+        type: "object",
+        properties: {
+          tradeId: { type: "string" }
+        },
+        required: ["tradeId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_market_stream_state",
       description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
       parameters: {
