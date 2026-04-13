@@ -9,6 +9,7 @@ import { listRecentTrades } from "./state.js";
 import { evaluateOpenPositions } from "./position-management-policy.js";
 import { reducePerpPosition, closePerpPosition } from "./execution.js";
 import { buildSymbolAnalysis } from "./tools/executor.js";
+import { buildRegimeThrottle } from "./regime-throttle.js";
 
 export async function runAutonomousManagementPass({ autoAct = true } = {}) {
   const account = await getNormalizedAccountState().catch(() => null);
@@ -66,10 +67,11 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
     }
   }));
   const analysesBySymbol = Object.fromEntries(analysisEntries);
+  const regimeThrottle = buildRegimeThrottle({ analysesBySymbol });
   const positionDecisions = evaluateOpenPositions({ trades: openTrades, positions: account?.positions || [], analysesBySymbol });
 
   for (const decision of positionDecisions) {
-    if (!autoAct || !safety.allowAutonomous) {
+    if (!autoAct || !safety.allowAutonomous || regimeThrottle.autonomyLevel === "halt_new_entries") {
       actions.push({ tradeId: decision.tradeId, action: decision.action, deferred: true, reason: decision.reason });
       continue;
     }
@@ -103,6 +105,7 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
     safety,
     reconciliation,
     positionDecisions,
+    regimeThrottle,
     actions,
   };
 }

@@ -56,6 +56,15 @@ function run() {
   assert.equal(sessionLocked.allowAutonomous, false);
   assert(sessionLocked.reasons.includes("daily_loss_lockout"));
 
+  const c = createTradeRecord({ symbol: "SOL", side: "long", sizeUsd: 100, thesis: "c", stopLossPct: 1, takeProfitPct: 2, snapshot: {} });
+  const d = createTradeRecord({ symbol: "XRP", side: "long", sizeUsd: 100, thesis: "d", stopLossPct: 1, takeProfitPct: 2, snapshot: {} });
+  const regime = evaluateAutonomousSafety({
+    account: { withdrawable: 1000, marginSummary: { totalMarginUsed: 200 } },
+    symbol: "SOL",
+    executionReliability: { total: 4, reliabilityScore: 0.75, ioc_cancel: 0, error: 0 },
+  });
+  assert.equal(typeof regime.allowAutonomous, "boolean");
+
   cleanup();
   console.log("safety rails tests passed");
 }

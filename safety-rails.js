@@ -1,6 +1,7 @@
 import { listRecentTrades } from "./state.js";
 import { buildPortfolioRiskProfile } from "./portfolio-risk.js";
 import { buildAutonomySessionState } from "./autonomy-session-state.js";
+import { buildRegimeThrottle } from "./regime-throttle.js";
 
 export function evaluateAutonomousSafety({ account = null, symbol = null, executionReliability = null }) {
   const recentTrades = listRecentTrades(100);
@@ -15,6 +16,7 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
 
   const portfolio = buildPortfolioRiskProfile({ account });
   const session = buildAutonomySessionState();
+  const regimeThrottle = buildRegimeThrottle();
 
   let allowAutonomous = true;
   const reasons = [];
@@ -59,6 +61,14 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
     allowAutonomous = false;
   }
 
+  if (regimeThrottle.autonomyLevel === "degraded") {
+    reasons.push(...regimeThrottle.reasons);
+  }
+  if (regimeThrottle.autonomyLevel === "halt_new_entries") {
+    allowAutonomous = false;
+    reasons.push(...regimeThrottle.reasons);
+  }
+
   return {
     symbol,
     allowAutonomous,
@@ -68,5 +78,6 @@ export function evaluateAutonomousSafety({ account = null, symbol = null, execut
     executionReliability,
     portfolio,
     session,
+    regimeThrottle,
   };
 }
