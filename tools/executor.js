@@ -32,6 +32,7 @@ import { buildTradePlanFromAnalysis } from "../analyzers/trade-plan.js";
 import { analyzeMultiTimeframe } from "../analyzers/multi-timeframe.js";
 import { evaluateTradeVeto } from "../analyzers/trade-veto.js";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSnapshots } from "../market-stream-state.js";
+import { subscribeSymbolOrderBook, listSubscribedSymbols } from "../market-stream.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -358,8 +359,19 @@ const toolMap = {
     };
   },
 
+  async subscribe_symbol_order_book({ symbol }) {
+    const result = await subscribeSymbolOrderBook(symbol);
+    return {
+      ...result,
+      subscribedSymbols: listSubscribedSymbols(),
+    };
+  },
+
   async get_market_stream_state() {
-    return listMarketStreamSnapshots();
+    return {
+      subscribedSymbols: listSubscribedSymbols(),
+      snapshots: listMarketStreamSnapshots(),
+    };
   },
 
   async list_account_state() {

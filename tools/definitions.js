@@ -33,6 +33,20 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "subscribe_symbol_order_book",
+      description: "Start a native Hyperliquid websocket L2 book subscription for a symbol and store rolling local microstructure state.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string" }
+        },
+        required: ["symbol"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_market_stream_state",
       description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
       parameters: {
