@@ -63,6 +63,10 @@ Base knowledge direction now includes:
 - perp context interpretation
 - order-flow and execution-quality principles
 
+The first real analyzer layer now exists for:
+- market structure classification
+- volatility / ATR expansion-compression detection
+
 Integration note:
 - Helix now uses the `@nktkas/hyperliquid` SDK as the primary real exchange access layer
 - custom Helix code is focused on orchestration, risk, journaling, replay discipline, and strategy logic
