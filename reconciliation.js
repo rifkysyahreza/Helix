@@ -84,7 +84,7 @@ export async function reconcileExecutionLeftovers(limit = 200) {
     }
 
     if (trade.status === "open" && trade.executionState?.restingOrderActive) {
-      const followUp = evaluateRestingOrderEscalation(trade.tradeId);
+      const followUp = await evaluateRestingOrderEscalation(trade.tradeId);
       if (followUp?.escalate) restingFollowUps.push(followUp);
     }
   }

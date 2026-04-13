@@ -50,6 +50,7 @@ import { buildHealthSummary } from "../health-summary.js";
 import { startBurnIn, stopBurnIn, summarizeBurnInState } from "../burn-in.js";
 import { scanStaleRestingOrders, markRestingOrderPlaced } from "../resting-orders.js";
 import { evaluateRestingOrderEscalation } from "../resting-order-policy.js";
+import { cancelRestingOrder, escalateRestingEntry } from "../order-management.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JOURNAL_DIR = path.join(__dirname, "..", "journal");
@@ -445,6 +446,16 @@ const toolMap = {
     return evaluateRestingOrderEscalation(tradeId);
   },
 
+  async cancel_resting_order({ tradeId }) {
+    if (!tradeId) return { error: "tradeId is required" };
+    return cancelRestingOrder({ tradeId });
+  },
+
+  async escalate_resting_order({ tradeId }) {
+    if (!tradeId) return { error: "tradeId is required" };
+    return escalateRestingEntry({ tradeId });
+  },
+
   async list_account_state() {
     const normalized = await getNormalizedAccountState();
 
@@ -650,6 +661,7 @@ const toolMap = {
       lastOpenOutcome: verification.executionLabel,
       lastRequestedOpenSize: requestedOpenSize,
       remainingOpenSize: requestedOpenSize != null ? Math.max(0, requestedOpenSize - (verification.totalFilledSize || 0)) : null,
+      executionTactics: proposal.executionTactics || null,
     });
     if (proposal.executionTactics?.orderStyle === "resting_limit_preferred" || proposal.executionTactics?.orderStyle === "small_probe_limit") {
       markRestingOrderPlaced(trade.tradeId, {

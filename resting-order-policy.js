@@ -1,7 +1,8 @@
 import { getTradeById, updateTradeExecutionState, updateTradeLifecycle } from "./state.js";
+import { cancelRestingOrder, escalateRestingEntry } from "./order-management.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
 
-export function evaluateRestingOrderEscalation(tradeId, { staleMs = Number(process.env.HELIX_RESTING_ORDER_STALE_MS || (15 * 60 * 1000)) } = {}) {
+export async function evaluateRestingOrderEscalation(tradeId, { staleMs = Number(process.env.HELIX_RESTING_ORDER_STALE_MS || (15 * 60 * 1000)), autoAct = false } = {}) {
   const trade = getTradeById(tradeId);
   if (!trade) return { tradeId, found: false, escalate: false, reason: "trade_not_found" };
 
@@ -45,6 +46,12 @@ export function evaluateRestingOrderEscalation(tradeId, { staleMs = Number(proce
       lastExchangeState: action === "follow_partial_fill" ? "partial_follow_up_needed" : "resting_escalation_needed",
     });
     recordExecutionIncident({ kind: action === "follow_partial_fill" ? "resting_order_partial_follow_up_needed" : "resting_order_escalation_needed", ...result });
+
+    if (autoAct) {
+      result.actionResult = action === "escalate_entry"
+        ? await escalateRestingEntry({ tradeId })
+        : await cancelRestingOrder({ tradeId });
+    }
   }
 
   return result;

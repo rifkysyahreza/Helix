@@ -112,6 +112,34 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "cancel_resting_order",
+      description: "Cancel a tracked resting order for a trade. In non-autonomous modes this records a truthful cancel request instead of faking execution.",
+      parameters: {
+        type: "object",
+        properties: {
+          tradeId: { type: "string" }
+        },
+        required: ["tradeId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "escalate_resting_order",
+      description: "Escalate a stale passive entry by cancelling the resting order and re-entering with aggressive execution tactics.",
+      parameters: {
+        type: "object",
+        properties: {
+          tradeId: { type: "string" }
+        },
+        required: ["tradeId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_market_stream_state",
       description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
       parameters: {

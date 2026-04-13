@@ -11,7 +11,7 @@ function cleanup() {
   if (fs.existsSync(INCIDENTS_FILE)) fs.unlinkSync(INCIDENTS_FILE);
 }
 
-function run() {
+async function run() {
   cleanup();
   const trade = createTradeRecord({ symbol: "ETH", side: "long", sizeUsd: 100, thesis: "test", stopLossPct: 1, takeProfitPct: 2, snapshot: {} });
   updateTradeExecutionState(trade.tradeId, {
@@ -20,7 +20,7 @@ function run() {
     hasOpenOrder: true,
     exchangeTotalFilledSize: 0,
   });
-  const stale = evaluateRestingOrderEscalation(trade.tradeId, { staleMs: 1000 });
+  const stale = await evaluateRestingOrderEscalation(trade.tradeId, { staleMs: 1000 });
   assert.equal(stale.escalate, true);
   assert.equal(stale.action, "escalate_entry");
 
@@ -29,7 +29,7 @@ function run() {
     hasOpenOrder: false,
     exchangeTotalFilledSize: 0.25,
   });
-  const partial = evaluateRestingOrderEscalation(trade.tradeId, { staleMs: 1000 });
+  const partial = await evaluateRestingOrderEscalation(trade.tradeId, { staleMs: 1000 });
   assert.equal(partial.action, "follow_partial_fill");
 
   cleanup();
