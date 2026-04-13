@@ -39,6 +39,7 @@ import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state
 import { analyzeTradeFlow } from "../analyzers/trade-flow.js";
 import { analyzeOrderFlowSignals } from "../analyzers/order-flow-signals.js";
 import { analyzeEntryStyle } from "../analyzers/entry-style.js";
+import { deriveExecutionTactics } from "../analyzers/execution-tactics.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -312,6 +313,7 @@ async function buildSymbolAnalysis(symbol) {
   const requestedSide = synthesis.bias === "short" ? "short" : synthesis.bias === "long" ? "long" : null;
   const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow, orderFlowSignals }, requestedSide });
   const entryStyle = analyzeEntryStyle({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow, orderFlowSignals, tradeVeto }, requestedSide });
+  const executionTactics = deriveExecutionTactics({ snapshot, analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow, orderFlowSignals, tradeVeto, entryStyle }, side: requestedSide });
 
   updateMarketStreamSnapshot(symbol, {
     bookImbalance,
@@ -341,6 +343,7 @@ async function buildSymbolAnalysis(symbol) {
     tradeFlow,
     orderFlowSignals,
     entryStyle,
+    executionTactics,
     tradeVeto,
     streamSnapshot: getMarketStreamSnapshot(symbol),
   };
@@ -479,6 +482,7 @@ const toolMap = {
         riskFlags: [...(analysis.synthesis.riskFlags || []), ...(analysis.tradeVeto.vetoes || [])],
         tradeVeto: analysis.tradeVeto,
         entryStyle: analysis.entryStyle,
+        executionTactics: analysis.executionTactics,
         confidence: analysis.synthesis.confidence,
         executionQuality: analysis.synthesis.executionQuality,
         location: analysis.synthesis.location,
@@ -570,7 +574,8 @@ const toolMap = {
       takeProfit: tradePlan.takeProfitPct,
       stopLoss: tradePlan.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
-      executionNotes: tradePlan.executionNotes,
+      executionNotes: [...tradePlan.executionNotes, ...(analysis.executionTactics?.notes || [])],
+      executionTactics: analysis.executionTactics,
       sizeUsd: analysis.tradeVeto.allowed ? (riskBudget.cappedSizeUsd ?? proposedSizeUsd) : 0,
       proposedSizeUsd,
       confidenceAdjustment: builtThesis.confidenceAdjustment,

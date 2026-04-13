@@ -12,6 +12,7 @@ function run() {
     tradeFlow: { deltaBias: "buy_pressure", delta: 12, aggressionBias: "aggressive" },
     orderFlowSignals: { signalBias: "long_confirm", divergence: "none", liquiditySweep: "none", absorption: false },
     entryStyle: { style: "breakout", aggression: "high", confidence: 0.78 },
+    executionTactics: { orderStyle: "ioc_limit", urgency: "high", aggressionBps: 25 },
     synthesis: { bias: "long", confidence: 0.7, riskFlags: ["test_flag"], reasons: ["bid_support"] },
   });
 
@@ -20,6 +21,7 @@ function run() {
   assert(summary.includes("Risk flags: test_flag"));
   assert(summary.includes("Order flow signals: long_confirm"));
   assert(summary.includes("Entry style: breakout"));
+  assert(summary.includes("Execution tactics: ioc_limit"));
 
   console.log("analysis summary tests passed");
 }

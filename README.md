@@ -71,6 +71,11 @@ The analyzer layer now exists for:
 - candle-derived volume profile approximation
 - perp context interpretation from funding / OI / premium
 - order-book imbalance and execution-quality heuristics
+- native trade-flow capture and derived delta-style pressure bias
+- rolling microstructure summaries from native L2 subscriptions
+- order-flow divergence / absorption / sweep heuristics
+- explicit entry-style policy (breakout / pullback / fade / no-trade)
+- execution-tactic shaping for entry style
 - multi-factor market synthesis for long / short / no-trade biasing
 - trade-plan shaping for invalidation, target framing, and execution notes
 
@@ -119,7 +124,8 @@ Current v0 status:
 - step 7 exists in early form but still needs deeper futures-specific synthesis
 - live execution infrastructure exists for open, reduce, and close flows
 - execution lifecycle, incident logging, replay policy, burn-in telemetry, and go-live checks are now part of the active scaffold
-- the biggest missing layer is no longer execution plumbing, it is deeper perp-specific technical analysis and strategy intelligence
+- market analysis now includes native trade-flow, rolling microstructure, order-flow heuristics, explicit entry styles, and execution tactics
+- the biggest missing layer is no longer basic execution plumbing, it is live-tested maturity and stronger autonomous trade management confidence
 
 ---
 
@@ -228,6 +234,11 @@ The intended cautious path is:
 1. `paper`
 2. `approval`
 3. tiny-size autonomous testing only after the go-live check looks clean
+
+Blunt current recommendation:
+- run Helix in `paper` now if your environment variables and Hyperliquid account access are configured correctly
+- run `approval` once you trust the proposals and exact intents
+- do not treat `autonomous` as production-ready just because the flag exists; use it only for tiny supervised testing after burn-in and go-live checks are clean
 
 ## Execution modes
 
