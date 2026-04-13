@@ -9,10 +9,14 @@ import { buildHealthSummary } from "./health-summary.js";
 import { haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbol, getOperatorControls } from "./operator-controls.js";
 import { runAutonomousManagementPass } from "./autonomous-manager.js";
 import { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } from "./runtime-resilience.js";
+import { runStartupRecovery } from "./startup-recovery.js";
 
 log("startup", "Helix starting...");
 const runtimeResilience = markRuntimeStart();
 log("startup", `Runtime resilience: ${JSON.stringify(runtimeResilience)}`);
+runStartupRecovery({ autoAct: config.execution.mode === "autonomous" })
+  .then((result) => log("startup", `Startup recovery: ${JSON.stringify({ recovered: result.recovered, reason: result.reason || null })}`))
+  .catch((error) => log("startup", `Startup recovery failed: ${error.message}`));
 log("startup", `Mode: ${process.env.DRY_RUN === "true" ? "DRY RUN" : "LIVE"}`);
 log("startup", `LLM runtime: ${config.llm.runtime}`);
 log("startup", `Model: ${process.env.LLM_MODEL || process.env.OPENCLAW_MODEL || "openai-codex/gpt-5.4"}`);

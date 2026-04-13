@@ -9,6 +9,7 @@ import { getPerformanceProfileSummary } from "./performance-profile.js";
 import { getNormalizedAccountState } from "./account-state.js";
 import { summarizeExecutionIncidents } from "./execution-incidents.js";
 import { evaluateRuntimeWatchdog, getRuntimeResilienceState } from "./runtime-resilience.js";
+import { runStartupRecovery } from "./startup-recovery.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
   const trades = listRecentTrades(limit);
@@ -22,6 +23,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const incidents = summarizeExecutionIncidents(200);
   const runtimeResilience = getRuntimeResilienceState();
   const watchdog = evaluateRuntimeWatchdog();
+  const startupRecoveryPreview = await runStartupRecovery({ autoAct: false }).catch(() => null);
 
   const openTrades = trades.filter((trade) => trade.status === "open");
   const closedTrades = trades.filter((trade) => trade.status === "closed");
@@ -66,6 +68,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     incidents,
     runtimeResilience,
     watchdog,
+    startupRecoveryPreview,
     performance: perf,
     summaryLines,
   };
