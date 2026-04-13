@@ -33,6 +33,8 @@ import { analyzeMultiTimeframe } from "../analyzers/multi-timeframe.js";
 import { evaluateTradeVeto } from "../analyzers/trade-veto.js";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSnapshots } from "../market-stream-state.js";
 import { subscribeSymbolOrderBook, listSubscribedSymbols } from "../market-stream.js";
+import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
+import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -365,6 +367,23 @@ const toolMap = {
       ...result,
       subscribedSymbols: listSubscribedSymbols(),
     };
+  },
+
+  async get_microstructure_state({ symbol } = {}) {
+    if (symbol) {
+      const upper = String(symbol).toUpperCase();
+      const state = getMicrostructureSamples(upper);
+      return {
+        symbol: upper,
+        samples: state.samples,
+        summary: analyzeMicrostructureHistory(state.samples),
+      };
+    }
+    const state = listMicrostructureState();
+    const summaries = Object.fromEntries(
+      Object.entries(state.symbols || {}).map(([sym, payload]) => [sym, analyzeMicrostructureHistory(payload.samples || [])]),
+    );
+    return { state, summaries };
   },
 
   async get_market_stream_state() {

@@ -1,5 +1,6 @@
 import { SubscriptionClient, WebSocketTransport } from "@nktkas/hyperliquid";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot } from "./market-stream-state.js";
+import { appendMicrostructureSample } from "./microstructure-state.js";
 
 let subscriptionClient = null;
 let subscribedSymbols = new Set();
@@ -39,6 +40,7 @@ export async function subscribeSymbolOrderBook(symbol) {
       levels: data?.levels || null,
       ...metrics,
     });
+    appendMicrostructureSample(upper, metrics);
   });
 
   subscribedSymbols.add(upper);
