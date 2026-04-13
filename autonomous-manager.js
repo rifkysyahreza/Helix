@@ -10,6 +10,7 @@ import { evaluateOpenPositions } from "./position-management-policy.js";
 import { reducePerpPosition, closePerpPosition } from "./execution.js";
 import { buildSymbolAnalysis } from "./tools/executor.js";
 import { buildRegimeThrottle } from "./regime-throttle.js";
+import { applyProfitProtection } from "./stop-protection.js";
 
 export async function runAutonomousManagementPass({ autoAct = true } = {}) {
   const account = await getNormalizedAccountState().catch(() => null);
@@ -81,7 +82,12 @@ export async function runAutonomousManagementPass({ autoAct = true } = {}) {
     if (!trade || !livePosition) continue;
 
     if (decision.action === "protect") {
-      actions.push({ tradeId: decision.tradeId, action: decision.action, reason: decision.reason, protection: decision.profitProtection || null });
+      const result = await applyProfitProtection({
+        tradeId: decision.tradeId,
+        livePosition,
+        protectionState: decision.profitProtection?.protectionState || null,
+      });
+      actions.push({ tradeId: decision.tradeId, action: decision.action, reason: decision.reason, protection: decision.profitProtection || null, result });
       recordExecutionIncident({ kind: "autonomous_manager_profit_protection", tradeId: decision.tradeId, reason: decision.reason });
     } else if (decision.action === "reduce" && decision.reducePct > 0) {
       const result = await reducePerpPosition({

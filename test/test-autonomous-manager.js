@@ -26,6 +26,7 @@ async function run() {
   assert.ok(Array.isArray(result.actions));
   assert.ok(result.reconciliation && typeof result.reconciliation === "object");
   assert.ok(Array.isArray(result.positionDecisions));
+  assert.ok(result.regimeThrottle && typeof result.regimeThrottle === "object");
 
   updateTradeExecutionState(trade.tradeId, {
     restingOrderActive: false,
