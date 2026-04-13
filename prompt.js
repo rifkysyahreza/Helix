@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
+import { summarizePerpBaseKnowledge } from "./base-knowledge.js";
 
 export function buildSystemPrompt(agentType, portfolio = {}, positions = {}, stateSummary = null, lessons = null, perfSummary = null) {
   const perfProfile = getPerformanceProfileSummary();
@@ -30,6 +31,9 @@ Trading style target:
 
 Adaptive learning hints:
 ${perfProfile.summaryLines.join("\n")}
+
+Base perp knowledge:
+${summarizePerpBaseKnowledge()}
 `;
 
   if (agentType === "TRADER") {

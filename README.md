@@ -51,9 +51,17 @@ What this means in practice:
 
 Still not finished:
 - richer perp-specific technical analysis and strategy inputs
-- deeper market structure / volume profile / order-flow intelligence
+- deeper market structure / volume profile / order-flow intelligence implementation over live data
 - fuller manager-driven autonomous reduce/close firing without conservative hold behavior
 - longer empirical burn-in history from repeated live-like operation
+
+Base knowledge direction now includes:
+- market structure
+- volatility and expansion/compression logic
+- VWAP and value framework
+- volume profile concepts
+- perp context interpretation
+- order-flow and execution-quality principles
 
 Integration note:
 - Helix now uses the `@nktkas/hyperliquid` SDK as the primary real exchange access layer

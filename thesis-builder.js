@@ -1,6 +1,7 @@
 import { summarizeOperatorKnowledge } from "./operator-knowledge.js";
 import { getPerformanceProfileSummary } from "./performance-profile.js";
 import { getLearnedBeliefs } from "./belief-updater.js";
+import { buildPerpBaseKnowledge } from "./base-knowledge.js";
 
 export function buildTradeThesis({ symbol, side, snapshot, scored }) {
   const operatorKnowledge = summarizeOperatorKnowledge(5);
@@ -8,6 +9,7 @@ export function buildTradeThesis({ symbol, side, snapshot, scored }) {
   const symbolProfile = perfProfile?.bySymbol?.[symbol] || null;
   const learnedBeliefs = getLearnedBeliefs();
   const learnedSymbolBelief = learnedBeliefs?.symbols?.[symbol] || null;
+  const baseKnowledge = buildPerpBaseKnowledge();
 
   const thesisParts = [];
 
@@ -17,6 +19,8 @@ export function buildTradeThesis({ symbol, side, snapshot, scored }) {
     thesisParts.push(`24h volume=${snapshot.dayNtlVlm}`);
     thesisParts.push(`premium=${snapshot.premium}`);
     thesisParts.push(`bias=${scored.sideBias}`);
+    thesisParts.push(`perp_context_hint=${baseKnowledge.perpContext.concepts[0]}`);
+    thesisParts.push(`execution_hint=${baseKnowledge.executionPrinciples.concepts[0]}`);
   } else {
     thesisParts.push("No market snapshot found");
   }
@@ -58,6 +62,7 @@ export function buildTradeThesis({ symbol, side, snapshot, scored }) {
     learnedSymbolBelief,
     scored,
     snapshot,
+    baseKnowledge,
     suggestedSizeBias,
     confidenceAdjustment,
   };
