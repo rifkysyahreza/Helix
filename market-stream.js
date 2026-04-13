@@ -2,17 +2,32 @@ import { SubscriptionClient, WebSocketTransport } from "@nktkas/hyperliquid";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot } from "./market-stream-state.js";
 import { appendMicrostructureSample } from "./microstructure-state.js";
 import { appendTrades } from "./trade-stream-state.js";
+import { markStreamSubscription, markStreamFailure, markStreamReconnect, getStreamRuntimeState } from "./stream-runtime-state.js";
 
 let subscriptionClient = null;
 let subscribedSymbols = new Set();
 let tradeSubscribedSymbols = new Set();
 
-function ensureClient() {
-  if (!subscriptionClient) {
+function ensureClient(forceReset = false) {
+  if (!subscriptionClient || forceReset) {
     const transport = new WebSocketTransport();
     subscriptionClient = new SubscriptionClient({ transport });
   }
   return subscriptionClient;
+}
+
+async function subscribeWithRecovery({ symbol, kind, subscribe }) {
+  try {
+    const result = await subscribe(ensureClient());
+    markStreamSubscription(symbol, kind);
+    return result;
+  } catch (error) {
+    markStreamFailure(symbol, kind, error);
+    const retriedClient = ensureClient(true);
+    const retried = await subscribe(retriedClient);
+    markStreamReconnect(symbol, kind);
+    return retried;
+  }
 }
 
 function buildBookMetrics(data) {
@@ -34,15 +49,18 @@ export async function subscribeSymbolOrderBook(symbol) {
     return { subscribed: true, symbol: upper, existing: true, snapshot: getMarketStreamSnapshot(upper) };
   }
 
-  const client = ensureClient();
-  await client.l2Book({ coin: upper }, (data) => {
-    const metrics = buildBookMetrics(data);
-    updateMarketStreamSnapshot(upper, {
-      source: "subscription:l2Book",
-      levels: data?.levels || null,
-      ...metrics,
-    });
-    appendMicrostructureSample(upper, metrics);
+  await subscribeWithRecovery({
+    symbol: upper,
+    kind: "orderBook",
+    subscribe: (client) => client.l2Book({ coin: upper }, (data) => {
+      const metrics = buildBookMetrics(data);
+      updateMarketStreamSnapshot(upper, {
+        source: "subscription:l2Book",
+        levels: data?.levels || null,
+        ...metrics,
+      });
+      appendMicrostructureSample(upper, metrics);
+    }),
   });
 
   subscribedSymbols.add(upper);
@@ -56,9 +74,12 @@ export async function subscribeSymbolTrades(symbol) {
     return { subscribed: true, symbol: upper, existing: true };
   }
 
-  const client = ensureClient();
-  await client.trades({ coin: upper }, (data) => {
-    appendTrades(upper, data || []);
+  await subscribeWithRecovery({
+    symbol: upper,
+    kind: "trades",
+    subscribe: (client) => client.trades({ coin: upper }, (data) => {
+      appendTrades(upper, data || []);
+    }),
   });
 
   tradeSubscribedSymbols.add(upper);
@@ -70,4 +91,8 @@ export function listSubscribedSymbols() {
     orderBooks: Array.from(subscribedSymbols),
     trades: Array.from(tradeSubscribedSymbols),
   };
+}
+
+export function getStreamSubscriptionsRuntime() {
+  return getStreamRuntimeState();
 }

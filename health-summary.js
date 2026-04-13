@@ -11,6 +11,7 @@ import { summarizeExecutionIncidents } from "./execution-incidents.js";
 import { evaluateRuntimeWatchdog, getRuntimeResilienceState } from "./runtime-resilience.js";
 import { runStartupRecovery } from "./startup-recovery.js";
 import { evaluateStreamHealth } from "./stream-health.js";
+import { getStreamSubscriptionsRuntime } from "./market-stream.js";
 import { buildAutonomySessionState } from "./autonomy-session-state.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
@@ -27,6 +28,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const watchdog = evaluateRuntimeWatchdog();
   const startupRecoveryPreview = await runStartupRecovery({ autoAct: false }).catch(() => null);
   const streamHealth = evaluateStreamHealth();
+  const streamRuntime = getStreamSubscriptionsRuntime();
   const autonomySession = buildAutonomySessionState();
 
   const openTrades = trades.filter((trade) => trade.status === "open");
@@ -46,6 +48,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   summaryLines.push(`Execution incidents: ${incidents.total}`);
   summaryLines.push(`Runtime watchdog stale: ${watchdog.stale}`);
   summaryLines.push(`Stream health healthy: ${streamHealth.healthy}`);
+  summaryLines.push(`Stream reconnects: ${streamRuntime.reconnects || 0}`);
   summaryLines.push(`Daily lockout: ${autonomySession.dailyLockout}`);
 
   if (reliability.worstSymbols?.length) {
@@ -76,6 +79,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     watchdog,
     startupRecoveryPreview,
     streamHealth,
+    streamRuntime,
     autonomySession,
     performance: perf,
     summaryLines,

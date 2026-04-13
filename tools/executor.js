@@ -32,7 +32,7 @@ import { buildTradePlanFromAnalysis } from "../analyzers/trade-plan.js";
 import { analyzeMultiTimeframe } from "../analyzers/multi-timeframe.js";
 import { evaluateTradeVeto } from "../analyzers/trade-veto.js";
 import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSnapshots } from "../market-stream-state.js";
-import { subscribeSymbolOrderBook, subscribeSymbolTrades, listSubscribedSymbols } from "../market-stream.js";
+import { subscribeSymbolOrderBook, subscribeSymbolTrades, listSubscribedSymbols, getStreamSubscriptionsRuntime } from "../market-stream.js";
 import { ensureManagedStreams, buildManagedWatchlist } from "../stream-watchlist-manager.js";
 import { evaluateStreamHealth, repairStreamHealth } from "../stream-health.js";
 import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
@@ -438,6 +438,7 @@ const toolMap = {
     return {
       subscribedSymbols: listSubscribedSymbols(),
       managedWatchlist: buildManagedWatchlist(),
+      runtime: getStreamSubscriptionsRuntime(),
       snapshots: listMarketStreamSnapshots(),
     };
   },
