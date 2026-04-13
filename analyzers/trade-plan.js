@@ -14,6 +14,7 @@ export function buildTradePlanFromAnalysis({ snapshot = null, analysis = null, d
   const tradeFlow = analysis?.tradeFlow || {};
   const tradeVeto = analysis?.tradeVeto || {};
   const orderFlowSignals = analysis?.orderFlowSignals || {};
+  const entryStyle = analysis?.entryStyle || {};
 
   const location = vwapValue.location || "unknown";
   const atr = Number(volatility?.atr || 0) || null;
@@ -22,13 +23,19 @@ export function buildTradePlanFromAnalysis({ snapshot = null, analysis = null, d
     : defaultStopLossPct;
   const stopLossPct = microstructure.regime === "thin"
     ? round(stopLossBase * 1.1, 2)
-    : round(stopLossBase, 2);
+    : entryStyle.style === "fade"
+      ? round(stopLossBase * 0.9, 2)
+      : round(stopLossBase, 2);
   const takeProfitBase = synthesis.confidence >= 0.7
     ? defaultTakeProfitPct * 1.15
     : defaultTakeProfitPct;
   const takeProfitPct = tradeFlow.deltaBias === "balanced"
     ? round(takeProfitBase * 0.9, 2)
-    : round(takeProfitBase, 2);
+    : entryStyle.style === "breakout"
+      ? round(takeProfitBase * 1.1, 2)
+      : entryStyle.style === "fade"
+        ? round(takeProfitBase * 0.85, 2)
+        : round(takeProfitBase, 2);
 
   const invalidation = location === "above_value"
     ? "Lose acceptance above value / VWAP and fail back into value."
@@ -51,6 +58,7 @@ export function buildTradePlanFromAnalysis({ snapshot = null, analysis = null, d
     stopLossPct,
     takeProfitPct,
     executionNotes: [
+      entryStyle.style ? `Preferred entry style: ${entryStyle.style} (${entryStyle.aggression || "n/a"} aggression).` : "Entry style is unavailable.",
       synthesis.executionQuality === "poor" ? "Execution quality is poor, so reduce aggression or skip." : "Execution quality is acceptable.",
       microstructure.regime === "thin" ? "Microstructure is thin, so expect worse slippage and avoid size." : "Microstructure is not obviously thin.",
       tradeFlow.deltaBias === "buy_pressure" ? "Trade flow shows buy pressure." : tradeFlow.deltaBias === "sell_pressure" ? "Trade flow shows sell pressure." : "Trade flow is balanced or unavailable.",

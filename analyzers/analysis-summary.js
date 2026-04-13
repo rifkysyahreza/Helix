@@ -10,6 +10,7 @@ export function summarizeSymbolAnalysis(analysis = {}) {
   const tradeFlow = analysis.tradeFlow || {};
   const tradeVeto = analysis.tradeVeto || {};
   const orderFlowSignals = analysis.orderFlowSignals || {};
+  const entryStyle = analysis.entryStyle || {};
 
   const lines = [];
   lines.push(`Bias: ${synthesis.bias || "unknown"} (confidence=${synthesis.confidence ?? "n/a"})`);
@@ -22,6 +23,7 @@ export function summarizeSymbolAnalysis(analysis = {}) {
   lines.push(`Microstructure: ${microstructure.regime || "unknown"}, liquidityShift=${microstructure.liquidityShift || "unknown"}, absorption=${microstructure.absorptionHint ?? "n/a"}`);
   lines.push(`Trade flow: ${tradeFlow.deltaBias || "unknown"}, delta=${tradeFlow.delta ?? "n/a"}, aggression=${tradeFlow.aggressionBias || "unknown"}`);
   lines.push(`Order flow signals: ${orderFlowSignals.signalBias || "unknown"}, divergence=${orderFlowSignals.divergence || "none"}, sweep=${orderFlowSignals.liquiditySweep || "none"}, absorption=${orderFlowSignals.absorption ?? "n/a"}`);
+  lines.push(`Entry style: ${entryStyle.style || "unknown"}, aggression=${entryStyle.aggression || "n/a"}, confidence=${entryStyle.confidence ?? "n/a"}`);
   if (Array.isArray(tradeVeto.cautions) && tradeVeto.cautions.length) {
     lines.push(`Live cautions: ${tradeVeto.cautions.join(", ")}`);
   }

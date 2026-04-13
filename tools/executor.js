@@ -38,6 +38,7 @@ import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
 import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state.js";
 import { analyzeTradeFlow } from "../analyzers/trade-flow.js";
 import { analyzeOrderFlowSignals } from "../analyzers/order-flow-signals.js";
+import { analyzeEntryStyle } from "../analyzers/entry-style.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -308,7 +309,9 @@ async function buildSymbolAnalysis(symbol) {
   const tradeFlow = analyzeTradeFlow(getTradeStreamState(symbol).trades);
   const synthesis = synthesizeMarketAnalysis({ structure, volatility, vwapValue, volumeProfile, perpContext, orderBook });
   const orderFlowSignals = analyzeOrderFlowSignals({ microstructure, tradeFlow, orderBook, synthesis });
-  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow, orderFlowSignals }, requestedSide: synthesis.bias === "short" ? "short" : "long" });
+  const requestedSide = synthesis.bias === "short" ? "short" : synthesis.bias === "long" ? "long" : null;
+  const tradeVeto = evaluateTradeVeto({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow, orderFlowSignals }, requestedSide });
+  const entryStyle = analyzeEntryStyle({ analysis: { structure, volatility, multiTimeframe, vwapValue, volumeProfile, perpContext, orderBook, synthesis, microstructure, tradeFlow, orderFlowSignals, tradeVeto }, requestedSide });
 
   updateMarketStreamSnapshot(symbol, {
     bookImbalance,
@@ -337,6 +340,7 @@ async function buildSymbolAnalysis(symbol) {
     synthesis,
     tradeFlow,
     orderFlowSignals,
+    entryStyle,
     tradeVeto,
     streamSnapshot: getMarketStreamSnapshot(symbol),
   };
@@ -457,16 +461,24 @@ const toolMap = {
           ? 0.75
           : 0;
       const orderFlowImpact = Number(analysis.orderFlowSignals?.confidenceImpact || 0) * 10;
-      const finalScore = Number((analysis.scored.score + analysis.synthesis.longScore - analysis.synthesis.shortScore + tradeFlowBoost + orderFlowImpact - liveFlowPenalty - microstructurePenalty).toFixed(2));
+      const entryStyleImpact = analysis.entryStyle?.style === "breakout"
+        ? 1.25
+        : analysis.entryStyle?.style === "pullback"
+          ? 0.85
+          : analysis.entryStyle?.style === "fade"
+            ? 0.3
+            : -1.5;
+      const finalScore = Number((analysis.scored.score + analysis.synthesis.longScore - analysis.synthesis.shortScore + tradeFlowBoost + orderFlowImpact + entryStyleImpact - liveFlowPenalty - microstructurePenalty).toFixed(2));
 
       return {
         symbol: snapshot.symbol,
-        verdict: !analysis.tradeVeto.allowed ? "skip" : analysis.synthesis.bias === "long" || analysis.synthesis.bias === "short" ? "tradeable" : analysis.synthesis.bias.startsWith("watch") ? "watch" : analysis.scored.setupQuality,
+        verdict: !analysis.tradeVeto.allowed || analysis.entryStyle?.style === "no_trade" ? "skip" : analysis.synthesis.bias === "long" || analysis.synthesis.bias === "short" ? "tradeable" : analysis.synthesis.bias.startsWith("watch") ? "watch" : analysis.scored.setupQuality,
         sideBias: analysis.synthesis.bias,
         score: finalScore,
         reasons: [...analysis.scored.reasons, ...analysis.synthesis.reasons, ...(analysis.orderFlowSignals?.reasons || []), ...(analysis.tradeVeto.cautions || [])],
         riskFlags: [...(analysis.synthesis.riskFlags || []), ...(analysis.tradeVeto.vetoes || [])],
         tradeVeto: analysis.tradeVeto,
+        entryStyle: analysis.entryStyle,
         confidence: analysis.synthesis.confidence,
         executionQuality: analysis.synthesis.executionQuality,
         location: analysis.synthesis.location,
@@ -483,7 +495,7 @@ const toolMap = {
         bookImbalance: analysis.bookImbalance,
         analyzers: analysis,
         summary: summarizeSymbolAnalysis(analysis),
-        note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, L2 book data, rolling microstructure, and native trade flow.",
+        note: "Helix ranking now uses multi-factor perp analysis over candles, funding, OI context, value, L2 book data, rolling microstructure, native trade flow, and explicit entry-style policy.",
       };
     }));
 
@@ -514,6 +526,13 @@ const toolMap = {
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
     const synthesisSizeBias = synthesis.bias === "no_trade" ? 0.5 : synthesis.confidence >= 0.7 ? 1.1 : 1;
+    const entryStyleSizeBias = analysis.entryStyle?.style === "breakout"
+      ? 1.1
+      : analysis.entryStyle?.style === "pullback"
+        ? 1
+        : analysis.entryStyle?.style === "fade"
+          ? 0.8
+          : 0.5;
     const microstructureSizeBias = analysis.microstructure?.regime === "thin" ? 0.75 : 1;
     const cautionSizeBias = analysis.tradeVeto?.cautions?.length ? Math.max(0.6, 1 - (analysis.tradeVeto.cautions.length * 0.1)) : 1;
     const tradeFlowSizeBias = analysis.tradeFlow?.deltaBias === "buy_pressure" && side === "long"
@@ -532,7 +551,7 @@ const toolMap = {
           : analysis.orderFlowSignals?.signalBias === "short_confirm" && side === "short"
             ? 1.05
             : 1;
-    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1) * synthesisSizeBias * microstructureSizeBias * cautionSizeBias * tradeFlowSizeBias * orderFlowSizeBias).toFixed(2));
+    const proposedSizeUsd = Number((config.execution.defaultPositionSizeUsd * (builtThesis.suggestedSizeBias || 1) * (compounding.sizeMultiplier || 1) * synthesisSizeBias * entryStyleSizeBias * microstructureSizeBias * cautionSizeBias * tradeFlowSizeBias * orderFlowSizeBias).toFixed(2));
     const riskBudget = buildRiskBudget({ account: liveAccount, proposedSizeUsd });
 
     return {
@@ -540,6 +559,7 @@ const toolMap = {
       side,
       mode: process.env.DRY_RUN === "true" ? "dry-run" : "live",
       tradeVeto: analysis.tradeVeto,
+      entryStyle: analysis.entryStyle,
       thesis: builtThesis.thesis,
       analysisSummary: summarizeSymbolAnalysis(analysis),
       operatorKnowledge: builtThesis.operatorKnowledge,
