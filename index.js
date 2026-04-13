@@ -10,6 +10,7 @@ import { haltTrading, resumeTrading, setCloseOnly, suspendSymbol, unsuspendSymbo
 import { runAutonomousManagementPass } from "./autonomous-manager.js";
 import { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } from "./runtime-resilience.js";
 import { runStartupRecovery } from "./startup-recovery.js";
+import { ensureManagedStreams } from "./stream-watchlist-manager.js";
 
 log("startup", "Helix starting...");
 const runtimeResilience = markRuntimeStart();
@@ -38,6 +39,7 @@ try {
 
 async function runObserverCycle() {
   markRuntimeHeartbeat();
+  await ensureManagedStreams().catch((error) => log("cron", `Managed stream refresh failed: ${error.message}`));
   log("cron", "Observer cycle");
   const result = await agentLoop(
     "Check current market context and summarize the top futures setups worth watching right now.",
@@ -128,6 +130,7 @@ rl.on("line", async (line) => {
         schedule: config.schedule,
         operatorControls: getOperatorControls(),
         runtimeResilience: evaluateRuntimeWatchdog(),
+        managedStreams: await ensureManagedStreams().catch(() => null),
       }, null, 2));
     } else if (input === "/health") {
       console.log(JSON.stringify(await buildHealthSummary({ limit: 100 }), null, 2));

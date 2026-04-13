@@ -170,6 +170,18 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "ensure_managed_streams",
+      description: "Ensure all configured and open-trade symbols have live order book and trade stream subscriptions.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_market_stream_state",
       description: "Return the current local market stream snapshot cache used for lightweight microstructure context.",
       parameters: {
