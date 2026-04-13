@@ -28,6 +28,7 @@ import { analyzePerpContext } from "../analyzers/perp-context.js";
 import { analyzeOrderBook } from "../analyzers/order-book.js";
 import { synthesizeMarketAnalysis } from "../analyzers/market-synthesis.js";
 import { summarizeSymbolAnalysis } from "../analyzers/analysis-summary.js";
+import { buildTradePlanFromAnalysis } from "../analyzers/trade-plan.js";
 import { buildRiskBudget } from "../risk-budget.js";
 import { evaluateAutonomousSafety } from "../safety-rails.js";
 import { setSymbolSafetyHold, getSymbolSafetyHold, clearSymbolSafetyHold } from "../safety-state.js";
@@ -397,6 +398,13 @@ const toolMap = {
     const synthesis = analysis.synthesis;
 
     const builtThesis = buildTradeThesis({ symbol, side, snapshot, scored: { ...scored, ...analysis } });
+    const tradePlan = buildTradePlanFromAnalysis({
+      snapshot,
+      analysis,
+      defaultStopLossPct: config.execution.stopLossPct,
+      defaultTakeProfitPct: config.execution.takeProfitPct,
+      side,
+    });
 
     const liveAccount = await getNormalizedAccountState().catch(() => null);
     const compounding = buildCompoundingContext({ limit: 200, account: liveAccount });
@@ -413,14 +421,12 @@ const toolMap = {
       operatorKnowledge: builtThesis.operatorKnowledge,
       symbolProfile: builtThesis.symbolProfile,
       learnedSymbolBelief: builtThesis.learnedSymbolBelief,
-      invalidation: synthesis.location === "above_value"
-        ? `Lose acceptance above value / VWAP and cut risk. Default hard stop still ${config.execution.stopLossPct}%.`
-        : synthesis.location === "below_value"
-          ? `Lose acceptance below value / VWAP and cut risk. Default hard stop still ${config.execution.stopLossPct}%.`
-          : `Inside value means weaker location. Default hard stop ${config.execution.stopLossPct}% until richer execution logic is added.`,
-      takeProfit: config.execution.takeProfitPct,
-      stopLoss: config.execution.stopLossPct,
+      invalidation: tradePlan.invalidation,
+      target: tradePlan.target,
+      takeProfit: tradePlan.takeProfitPct,
+      stopLoss: tradePlan.stopLossPct,
       trailingStop: config.execution.trailingStopPct,
+      executionNotes: tradePlan.executionNotes,
       sizeUsd: riskBudget.cappedSizeUsd ?? proposedSizeUsd,
       proposedSizeUsd,
       confidenceAdjustment: builtThesis.confidenceAdjustment,

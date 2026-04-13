@@ -71,6 +71,7 @@ The analyzer layer now exists for:
 - perp context interpretation from funding / OI / premium
 - order-book imbalance and execution-quality heuristics
 - multi-factor market synthesis for long / short / no-trade biasing
+- trade-plan shaping for invalidation, target framing, and execution notes
 
 Integration note:
 - Helix now uses the `@nktkas/hyperliquid` SDK as the primary real exchange access layer
