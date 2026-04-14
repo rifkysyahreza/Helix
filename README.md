@@ -249,9 +249,11 @@ Helix now includes a concrete staged burn-in path:
 
 Operator artifacts now include:
 - `BURN_IN_RUNBOOK.md`
+- `BURN_IN_SESSION_1.md`
 - staged protocol summary via `get_burn_in_protocol`
 - operator runbook status via `get_burn_in_runbook`
-- REPL command: `/burn-in runbook`
+- first-session plan via `get_first_burn_in_session_plan`
+- REPL commands: `/burn-in runbook`, `/burn-in plan`
 
 Promotion rule:
 - promote only when checklist is green and operator review agrees

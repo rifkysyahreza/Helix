@@ -37,6 +37,7 @@ import { ensureManagedStreams, buildManagedWatchlist } from "../stream-watchlist
 import { evaluateStreamHealth, repairStreamHealth } from "../stream-health.js";
 import { buildBurnInProtocolSummary } from "../burn-in-protocol.js";
 import { buildBurnInRunbookStatus } from "../burn-in-runbook.js";
+import { buildFirstPaperBurnInPlan } from "../burn-in-session-plan.js";
 import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
 import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
 import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state.js";
@@ -463,6 +464,10 @@ const toolMap = {
 
   async get_burn_in_runbook() {
     return buildBurnInRunbookStatus();
+  },
+
+  async get_first_burn_in_session_plan() {
+    return buildFirstPaperBurnInPlan();
   },
 
   async scan_resting_orders() {

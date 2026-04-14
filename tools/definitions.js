@@ -170,6 +170,18 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_first_burn_in_session_plan",
+      description: "Return the exact first paper burn-in session plan, command sequence, watch items, and pass/fail criteria.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_burn_in_runbook",
       description: "Return concrete burn-in operator runbook status, blockers, and promote or rollback guidance.",
       parameters: {

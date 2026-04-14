@@ -136,5 +136,14 @@ Validate real live behavior with tiny risk and active operator supervision.
 - inspect burn-in protocol
 - decide: hold stage, promote, or roll back
 
+## Session 1 starter artifact
+
+Helix now also includes:
+- `BURN_IN_SESSION_1.md`
+- tool: `get_first_burn_in_session_plan`
+- REPL command: `/burn-in plan`
+
+Use that for the exact first paper session flow instead of improvising.
+
 ## Blunt rule
 If you have to explain away something sketchy, do not promote the stage.
