@@ -240,6 +240,25 @@ Blunt current recommendation:
 - run `approval` once you trust the proposals and exact intents
 - do not treat `autonomous` as production-ready just because the flag exists; use it only for tiny supervised testing after burn-in and go-live checks are clean
 
+## Burn-in operator runbook
+
+Helix now includes a concrete staged burn-in path:
+1. `paper`
+2. `approval`
+3. `autonomous` at tiny supervised size only
+
+Operator artifacts now include:
+- `BURN_IN_RUNBOOK.md`
+- staged protocol summary via `get_burn_in_protocol`
+- operator runbook status via `get_burn_in_runbook`
+- REPL command: `/burn-in runbook`
+
+Promotion rule:
+- promote only when checklist is green and operator review agrees
+
+Rollback rule:
+- roll back immediately on severe incidents, unexplained drift, stream instability, or untrusted live behavior
+
 ## Execution modes
 
 Helix now supports a mode switch via:

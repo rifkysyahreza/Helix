@@ -170,6 +170,18 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_burn_in_runbook",
+      description: "Return concrete burn-in operator runbook status, blockers, and promote or rollback guidance.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_burn_in_protocol",
       description: "Return the current staged burn-in protocol summary, checklist, and next-stage recommendation.",
       parameters: {

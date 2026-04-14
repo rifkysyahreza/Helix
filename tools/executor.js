@@ -36,6 +36,7 @@ import { subscribeSymbolOrderBook, subscribeSymbolTrades, listSubscribedSymbols,
 import { ensureManagedStreams, buildManagedWatchlist } from "../stream-watchlist-manager.js";
 import { evaluateStreamHealth, repairStreamHealth } from "../stream-health.js";
 import { buildBurnInProtocolSummary } from "../burn-in-protocol.js";
+import { buildBurnInRunbookStatus } from "../burn-in-runbook.js";
 import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
 import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
 import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state.js";
@@ -458,6 +459,10 @@ const toolMap = {
 
   async get_burn_in_protocol() {
     return buildBurnInProtocolSummary();
+  },
+
+  async get_burn_in_runbook() {
+    return buildBurnInRunbookStatus();
   },
 
   async scan_resting_orders() {

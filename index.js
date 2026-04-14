@@ -12,6 +12,7 @@ import { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } from 
 import { runStartupRecovery } from "./startup-recovery.js";
 import { ensureManagedStreams } from "./stream-watchlist-manager.js";
 import { repairStreamHealth, evaluateStreamHealth } from "./stream-health.js";
+import { buildBurnInRunbookStatus } from "./burn-in-runbook.js";
 
 log("startup", "Helix starting...");
 const runtimeResilience = markRuntimeStart();
@@ -106,7 +107,7 @@ cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
 });
 
 console.log("\nHelix runtime is live.");
-console.log("Commands: /status, /health, /audit, /drill, /burn-in start [paper|approval], /burn-in stop, /burn-in status, /watch, /manage, /maintain, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("Commands: /status, /health, /audit, /drill, /burn-in start [paper|approval], /burn-in stop, /burn-in status, /burn-in runbook, /watch, /manage, /maintain, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -166,6 +167,8 @@ rl.on("line", async (line) => {
       console.log(JSON.stringify({ ok: true, note: "Use tool path stop_burn_in during agent flows for structured tracking." }, null, 2));
     } else if (input === "/burn-in status") {
       console.log(JSON.stringify(await buildHealthSummary({ limit: 50 }), null, 2));
+    } else if (input === "/burn-in runbook") {
+      console.log(JSON.stringify(await buildBurnInRunbookStatus(), null, 2));
     } else if (input === "/halt") {
       console.log(JSON.stringify(haltTrading("manual_repl_halt"), null, 2));
     } else if (input === "/resume") {
