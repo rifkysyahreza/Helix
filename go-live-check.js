@@ -2,12 +2,14 @@ import { getNormalizedAccountState } from "./account-state.js";
 import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
 import { buildCompoundingContext } from "./compounding.js";
 import { summarizeBurnInState } from "./burn-in.js";
+import { buildBurnInProtocolSummary } from "./burn-in-protocol.js";
 
 export async function buildGoLiveCheck() {
   const account = await getNormalizedAccountState().catch(() => null);
   const reliability = buildExecutionReliabilitySummary(300);
   const compounding = buildCompoundingContext({ limit: 300, account });
   const burnIn = summarizeBurnInState();
+  const burnInProtocol = await buildBurnInProtocolSummary().catch(() => null);
 
   const issues = [];
 
@@ -24,6 +26,7 @@ export async function buildGoLiveCheck() {
     reliability,
     compounding,
     burnIn,
+    burnInProtocol,
     recommendedMode: issues.length === 0 ? "autonomous-tiny" : "approval",
   };
 }

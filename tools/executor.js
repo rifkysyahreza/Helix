@@ -35,6 +35,7 @@ import { updateMarketStreamSnapshot, getMarketStreamSnapshot, listMarketStreamSn
 import { subscribeSymbolOrderBook, subscribeSymbolTrades, listSubscribedSymbols, getStreamSubscriptionsRuntime } from "../market-stream.js";
 import { ensureManagedStreams, buildManagedWatchlist } from "../stream-watchlist-manager.js";
 import { evaluateStreamHealth, repairStreamHealth } from "../stream-health.js";
+import { buildBurnInProtocolSummary } from "../burn-in-protocol.js";
 import { getMicrostructureSamples, listMicrostructureState } from "../microstructure-state.js";
 import { analyzeMicrostructureHistory } from "../analyzers/microstructure.js";
 import { getTradeStreamState, listTradeStreamState } from "../trade-stream-state.js";
@@ -453,6 +454,10 @@ const toolMap = {
 
   async repair_stream_health() {
     return repairStreamHealth();
+  },
+
+  async get_burn_in_protocol() {
+    return buildBurnInProtocolSummary();
   },
 
   async scan_resting_orders() {

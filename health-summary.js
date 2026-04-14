@@ -13,6 +13,7 @@ import { runStartupRecovery } from "./startup-recovery.js";
 import { evaluateStreamHealth } from "./stream-health.js";
 import { getStreamSubscriptionsRuntime } from "./market-stream.js";
 import { buildAutonomySessionState } from "./autonomy-session-state.js";
+import { buildBurnInProtocolSummary } from "./burn-in-protocol.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
   const trades = listRecentTrades(limit);
@@ -30,6 +31,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const streamHealth = evaluateStreamHealth();
   const streamRuntime = getStreamSubscriptionsRuntime();
   const autonomySession = buildAutonomySessionState();
+  const burnInProtocol = await buildBurnInProtocolSummary().catch(() => null);
 
   const openTrades = trades.filter((trade) => trade.status === "open");
   const closedTrades = trades.filter((trade) => trade.status === "closed");
@@ -50,6 +52,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   summaryLines.push(`Stream health healthy: ${streamHealth.healthy}`);
   summaryLines.push(`Stream reconnects: ${streamRuntime.reconnects || 0}`);
   summaryLines.push(`Daily lockout: ${autonomySession.dailyLockout}`);
+  summaryLines.push(`Burn-in next stage: ${burnInProtocol?.nextStageRecommendation || "unknown"}`);
 
   if (reliability.worstSymbols?.length) {
     summaryLines.push(`Weakest execution reliability: ${reliability.worstSymbols.map((row) => `${row.symbol}:${row.reliabilityScore}`).join(" | ")}`);
@@ -81,6 +84,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     streamHealth,
     streamRuntime,
     autonomySession,
+    burnInProtocol,
     performance: perf,
     summaryLines,
   };

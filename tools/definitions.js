@@ -170,6 +170,18 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "get_burn_in_protocol",
+      description: "Return the current staged burn-in protocol summary, checklist, and next-stage recommendation.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_stream_health",
       description: "Inspect whether managed live stream coverage is stale or missing for required symbols.",
       parameters: {
