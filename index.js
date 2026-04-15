@@ -42,6 +42,7 @@ try {
 
 const cycleState = {
   observer: false,
+  planner: false,
   review: false,
   management: false,
   llmGlobal: false,
@@ -84,6 +85,24 @@ async function runObserverCycle() {
       { requireTool: true },
     );
     log("cycle", `Observer result: ${(result.content || "").slice(0, 300)}`);
+    return result;
+  });
+}
+
+async function runPlannerCycle() {
+  return runSingleFlightCycle("planner", async () => {
+    markRuntimeHeartbeat();
+    log("cron", "Planner cycle");
+    const result = await agentLoop(
+      "Review current Hyperliquid futures context, update ranked trade ideas, and summarize the best conditional plans right now.",
+      config.llm.maxSteps,
+      [],
+      "TRADER",
+      config.llm.traderModel,
+      null,
+      { requireTool: true },
+    );
+    log("cycle", `Planner result: ${(result.content || "").slice(0, 300)}`);
     return result;
   });
 }
@@ -133,7 +152,7 @@ cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
 });
 
 cron.schedule(`*/${config.schedule.plannerIntervalMin} * * * *`, () => {
-  runObserverCycle().catch((error) => log("cron_error", `Planner cycle failed: ${error.message}`));
+  runPlannerCycle().catch((error) => log("cron_error", `Planner cycle failed: ${error.message}`));
 });
 
 cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {

@@ -88,8 +88,8 @@ Integration note:
 ## Intended architecture
 
 ### Core layers
-- **observer**: fetch Hyperliquid market/account state
-- **planner**: decide long / short / skip with thesis and invalidation
+- **observer**: fetch Hyperliquid market/account state and watch current setups
+- **planner**: review current futures context and shape ranked conditional trade ideas
 - **executor**: place, reduce, close, and monitor positions
 - **journaler**: record setup, action, result, lesson
 - **evolver**: review outcomes and refine heuristics over time
