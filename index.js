@@ -15,7 +15,7 @@ import { repairStreamHealth, evaluateStreamHealth } from "./stream-health.js";
 import { clearMarketStreamSnapshots } from "./market-stream-state.js";
 import { buildBurnInRunbookStatus } from "./burn-in-runbook.js";
 import { buildFirstPaperBurnInPlan } from "./burn-in-session-plan.js";
-import { getBurnInState, startBurnIn, recordBurnInEvent } from "./burn-in.js";
+import { getBurnInState, startBurnIn, syncBurnInMode, recordBurnInEvent } from "./burn-in.js";
 
 log("startup", "Helix starting...");
 const runtimeResilience = markRuntimeStart();
@@ -24,6 +24,8 @@ log("startup", `Runtime resilience: ${JSON.stringify(runtimeResilience)}`);
 const burnInState = getBurnInState();
 if (!burnInState.enabled && config.execution.mode === "paper") {
   startBurnIn({ mode: "paper", stage: "paper", note: "auto-started during paper runtime" });
+} else if (config.execution.mode === "paper" || config.execution.mode === "approval") {
+  syncBurnInMode({ mode: config.execution.mode, stage: config.execution.mode, note: `runtime_mode_synced_${config.execution.mode}` });
 }
 runStartupRecovery({ autoAct: config.execution.mode === "autonomous" })
   .then((result) => log("startup", `Startup recovery: ${JSON.stringify({ recovered: result.recovered, reason: result.reason || null })}`))

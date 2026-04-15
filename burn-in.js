@@ -46,12 +46,12 @@ export function getBurnInState() {
   return load();
 }
 
-export function startBurnIn({ mode = "paper", stage = null, note = null } = {}) {
+export function startBurnIn({ mode = "paper", stage = null, note = null, resetStartedAt = false } = {}) {
   const state = load();
   state.enabled = true;
   state.mode = mode;
   state.stage = stage || mode;
-  state.startedAt = state.startedAt || new Date().toISOString();
+  state.startedAt = resetStartedAt ? new Date().toISOString() : (state.startedAt || new Date().toISOString());
   if (note) state.notes.push({ at: new Date().toISOString(), note });
   save(state);
   return state;
@@ -60,6 +60,21 @@ export function startBurnIn({ mode = "paper", stage = null, note = null } = {}) 
 export function stopBurnIn({ note = null } = {}) {
   const state = load();
   state.enabled = false;
+  if (note) state.notes.push({ at: new Date().toISOString(), note });
+  save(state);
+  return state;
+}
+
+export function syncBurnInMode({ mode = "paper", stage = null, note = null } = {}) {
+  const state = load();
+  const nextStage = stage || mode;
+  const changed = state.mode !== mode || state.stage !== nextStage || state.enabled === false;
+  if (!changed) return state;
+
+  state.enabled = true;
+  state.mode = mode;
+  state.stage = nextStage;
+  state.startedAt = state.startedAt || new Date().toISOString();
   if (note) state.notes.push({ at: new Date().toISOString(), note });
   save(state);
   return state;
