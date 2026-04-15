@@ -40,55 +40,83 @@ try {
   process.exit(1);
 }
 
+const cycleState = {
+  observer: false,
+  review: false,
+  management: false,
+};
+
+async function runSingleFlightCycle(name, fn) {
+  if (cycleState[name]) {
+    log("cron", `${name} cycle skipped (already running)`);
+    return { skipped: true, reason: "already_running" };
+  }
+  cycleState[name] = true;
+  try {
+    return await fn();
+  } finally {
+    cycleState[name] = false;
+  }
+}
+
 async function runObserverCycle() {
-  markRuntimeHeartbeat();
-  await ensureManagedStreams().catch((error) => log("cron", `Managed stream refresh failed: ${error.message}`));
-  const streamRepair = await repairStreamHealth().catch((error) => ({ error: error.message }));
-  log("cron", `Observer cycle (streamHealthy=${streamRepair?.health?.healthy ?? !streamRepair?.error})`);
-  const result = await agentLoop(
-    "Check current market context and summarize the top futures setups worth watching right now.",
-    config.llm.maxSteps,
-    [],
-    "TRADER",
-    config.llm.traderModel,
-    null,
-    { requireTool: true },
-  );
-  log("cycle", `Observer result: ${(result.content || "").slice(0, 300)}`);
+  return runSingleFlightCycle("observer", async () => {
+    markRuntimeHeartbeat();
+    await ensureManagedStreams().catch((error) => log("cron", `Managed stream refresh failed: ${error.message}`));
+    const streamRepair = await repairStreamHealth().catch((error) => ({ error: error.message }));
+    log("cron", `Observer cycle (streamHealthy=${streamRepair?.health?.healthy ?? !streamRepair?.error})`);
+    const result = await agentLoop(
+      "Check current market context and summarize the top futures setups worth watching right now.",
+      config.llm.maxSteps,
+      [],
+      "TRADER",
+      config.llm.traderModel,
+      null,
+      { requireTool: true },
+    );
+    log("cycle", `Observer result: ${(result.content || "").slice(0, 300)}`);
+    return result;
+  });
 }
 
 async function runReviewCycle() {
-  markRuntimeHeartbeat();
-  log("cron", "Review cycle");
-  const result = await agentLoop(
-    "Review recent Helix journal notes and summarize the most important lessons.",
-    config.llm.maxSteps,
-    [],
-    "REVIEWER",
-    config.llm.reviewerModel,
-    null,
-    { requireTool: true },
-  );
-  log("cycle", `Review result: ${(result.content || "").slice(0, 300)}`);
+  return runSingleFlightCycle("review", async () => {
+    markRuntimeHeartbeat();
+    log("cron", "Review cycle");
+    const result = await agentLoop(
+      "Review recent Helix journal notes and summarize the most important lessons.",
+      config.llm.maxSteps,
+      [],
+      "REVIEWER",
+      config.llm.reviewerModel,
+      null,
+      { requireTool: true },
+    );
+    log("cycle", `Review result: ${(result.content || "").slice(0, 300)}`);
+    return result;
+  });
 }
 
 async function runManagementCycle() {
-  markRuntimeHeartbeat();
-  const watchdog = evaluateRuntimeWatchdog();
-  log("cron", `Management cycle (watchdog stale=${watchdog.stale})`);
-  const maintenance = await runAutonomousManagementPass({ autoAct: true }).catch((error) => ({ error: error.message }));
-  log("cycle", `Management maintenance: ${JSON.stringify(maintenance).slice(0, 300)}`);
+  return runSingleFlightCycle("management", async () => {
+    markRuntimeHeartbeat();
+    const watchdog = evaluateRuntimeWatchdog();
+    log("cron", `Management cycle (watchdog stale=${watchdog.stale})`);
+    const maintenance = await runAutonomousManagementPass({ autoAct: true }).catch((error) => ({ error: error.message }));
+    log("cycle", `Management maintenance: ${JSON.stringify(maintenance).slice(0, 300)}`);
 
-  const result = await agentLoop(
-    "Evaluate current open Hyperliquid positions, suggest hold/reduce/close actions, and summarize what matters most right now.",
-    config.llm.maxSteps,
-    [],
-    "TRADER",
-    config.llm.traderModel,
-    null,
-    { requireTool: true },
-  );
-  log("cycle", `Management result: ${(result.content || "").slice(0, 300)}`);
+    const result = await agentLoop(
+      "Evaluate current open Hyperliquid positions, suggest hold/reduce/close actions, and summarize what matters most right now.",
+      config.llm.maxSteps,
+      [],
+      "TRADER",
+      config.llm.traderModel,
+      null,
+      { requireTool: true },
+    );
+    log("cycle", `Management result: ${(result.content || "").slice(0, 300)}`);
+    return result;
+  });
 }
 
 cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
