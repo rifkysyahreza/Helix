@@ -294,7 +294,14 @@ rl.on("line", async (line) => {
       );
       console.log(result.content || "No response.");
     } else if (input === "/maintain") {
-      console.log(JSON.stringify(await runAutonomousManagementPass({ autoAct: true }), null, 2));
+      markRuntimeHeartbeat();
+      const maintenance = await runAutonomousManagementPass({ autoAct: true });
+      if (config.execution.mode === "paper") {
+        recordBurnInEvent({ paperCycle: true, successfulExecution: true, note: "manual_maintain_completed" });
+      } else if (config.execution.mode === "approval") {
+        recordBurnInEvent({ approvalCycle: true, approvalReviewed: true, successfulExecution: true, note: "manual_maintain_completed" });
+      }
+      console.log(JSON.stringify(maintenance, null, 2));
     } else if (input === "/pending") {
       const result = await agentLoop(
         "List current pending Helix approval intents and summarize the most urgent ones.",
