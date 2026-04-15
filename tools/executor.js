@@ -362,16 +362,39 @@ export async function buildSymbolAnalysis(symbol) {
 const toolMap = {
   async get_market_context({ symbols } = {}) {
     const watch = symbols?.length ? symbols : defaultSymbols();
-    const [metaAndAssetCtxs, mids] = await Promise.all([
-      fetchMetaAndAssetContexts(),
-      fetchAllMids(),
-    ]);
+    try {
+      const [metaAndAssetCtxs, mids] = await Promise.all([
+        fetchMetaAndAssetContexts(),
+        fetchAllMids(),
+      ]);
 
-    const snapshots = watch.map((symbol) => buildSymbolSnapshot(symbol, metaAndAssetCtxs.assetContexts, mids)).filter(Boolean);
-    return {
-      source: "hyperliquid",
-      symbols: snapshots,
-    };
+      const snapshots = watch.map((symbol) => buildSymbolSnapshot(symbol, metaAndAssetCtxs.metaAndAssetCtxs, mids)).filter(Boolean);
+      return {
+        source: "hyperliquid",
+        symbols: snapshots,
+      };
+    } catch (error) {
+      const fallback = watch.map((symbol) => {
+        const streamSnapshot = getMarketStreamSnapshot(symbol);
+        if (!streamSnapshot) return null;
+        return {
+          symbol,
+          markPx: streamSnapshot.bestAsk || streamSnapshot.bestBid || null,
+          midPx: streamSnapshot.bestBid && streamSnapshot.bestAsk ? (streamSnapshot.bestBid + streamSnapshot.bestAsk) / 2 : null,
+          dayNtlVlm: null,
+          openInterest: null,
+          funding: null,
+          premium: null,
+          source: "stream_fallback",
+          streamSnapshot,
+        };
+      }).filter(Boolean);
+      return {
+        source: fallback.length ? "stream_fallback" : "hyperliquid_error",
+        error: error.message,
+        symbols: fallback,
+      };
+    }
   },
 
   async analyze_symbol({ symbol }) {

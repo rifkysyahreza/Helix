@@ -35,3 +35,14 @@ export function getMarketStreamSnapshot(symbol) {
 export function listMarketStreamSnapshots() {
   return load();
 }
+
+export function clearMarketStreamSnapshots(symbols = null) {
+  const state = load();
+  if (Array.isArray(symbols) && symbols.length) {
+    for (const symbol of symbols) delete state.symbols[symbol];
+  } else {
+    state.symbols = {};
+  }
+  save(state);
+  return state;
+}

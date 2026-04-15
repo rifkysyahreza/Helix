@@ -7,6 +7,29 @@ export async function fetchMetaAndAssetContexts() {
   return { meta, metaAndAssetCtxs };
 }
 
+function normalizeMetaAndAssetCtxs(payload) {
+  if (!payload) return { universe: [], contexts: [] };
+  if (Array.isArray(payload)) {
+    return {
+      universe: payload?.[0]?.universe || [],
+      contexts: payload?.[1] || [],
+    };
+  }
+  if (payload.universe || payload.assetCtxs || payload.assetContexts) {
+    return {
+      universe: payload.universe || [],
+      contexts: payload.assetCtxs || payload.assetContexts || [],
+    };
+  }
+  if (payload.metaAndAssetCtxs) {
+    return normalizeMetaAndAssetCtxs(payload.metaAndAssetCtxs);
+  }
+  return {
+    universe: payload?.meta?.universe || [],
+    contexts: payload?.ctxs || payload?.contexts || [],
+  };
+}
+
 export async function fetchAllMids() {
   const info = createInfoClient();
   return await info.allMids();
@@ -50,18 +73,17 @@ export async function fetchL2Book(symbol) {
 }
 
 export function buildSymbolSnapshot(symbol, metaAndAssetCtxs, mids) {
-  const universe = metaAndAssetCtxs?.[0]?.universe || [];
-  const contexts = metaAndAssetCtxs?.[1] || [];
+  const { universe, contexts } = normalizeMetaAndAssetCtxs(metaAndAssetCtxs);
   const idx = universe.findIndex((asset) => asset.name === symbol);
-  if (idx === -1) return null;
-
-  const asset = universe[idx];
-  const ctx = contexts[idx] || {};
+  const asset = idx >= 0 ? universe[idx] : null;
+  const ctx = idx >= 0 ? (contexts[idx] || {}) : {};
   const mid = mids?.[symbol] ?? null;
+
+  if (idx === -1 && mid == null) return null;
 
   return {
     symbol,
-    assetIndex: idx,
+    assetIndex: idx >= 0 ? idx : null,
     markPx: ctx.markPx ? Number(ctx.markPx) : null,
     oraclePx: ctx.oraclePx ? Number(ctx.oraclePx) : null,
     midPx: mid ? Number(mid) : null,

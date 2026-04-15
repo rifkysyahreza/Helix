@@ -12,11 +12,13 @@ import { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } from 
 import { runStartupRecovery } from "./startup-recovery.js";
 import { ensureManagedStreams } from "./stream-watchlist-manager.js";
 import { repairStreamHealth, evaluateStreamHealth } from "./stream-health.js";
+import { clearMarketStreamSnapshots } from "./market-stream-state.js";
 import { buildBurnInRunbookStatus } from "./burn-in-runbook.js";
 import { buildFirstPaperBurnInPlan } from "./burn-in-session-plan.js";
 
 log("startup", "Helix starting...");
 const runtimeResilience = markRuntimeStart();
+clearMarketStreamSnapshots();
 log("startup", `Runtime resilience: ${JSON.stringify(runtimeResilience)}`);
 runStartupRecovery({ autoAct: config.execution.mode === "autonomous" })
   .then((result) => log("startup", `Startup recovery: ${JSON.stringify({ recovered: result.recovered, reason: result.reason || null })}`))
