@@ -44,18 +44,27 @@ const cycleState = {
   observer: false,
   review: false,
   management: false,
+  llmGlobal: false,
 };
 
-async function runSingleFlightCycle(name, fn) {
+async function runSingleFlightCycle(name, fn, { requiresGlobalLlm = true } = {}) {
   if (cycleState[name]) {
     log("cron", `${name} cycle skipped (already running)`);
     return { skipped: true, reason: "already_running" };
   }
+  if (requiresGlobalLlm && cycleState.llmGlobal) {
+    log("cron", `${name} cycle skipped (global llm cycle busy)`);
+    return { skipped: true, reason: "global_llm_busy" };
+  }
+
   cycleState[name] = true;
+  if (requiresGlobalLlm) cycleState.llmGlobal = true;
+
   try {
     return await fn();
   } finally {
     cycleState[name] = false;
+    if (requiresGlobalLlm) cycleState.llmGlobal = false;
   }
 }
 
