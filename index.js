@@ -55,6 +55,15 @@ const cycleState = {
   llmGlobal: false,
 };
 
+function buildManagementScheduleExpression(intervalMin) {
+  if (!Number.isFinite(intervalMin) || intervalMin <= 1) return "* * * * *";
+  const minutes = [];
+  for (let minute = 1; minute < 60; minute += intervalMin) {
+    minutes.push(minute);
+  }
+  return `${minutes.join(",")} * * * *`;
+}
+
 async function runSingleFlightCycle(name, fn, { requiresGlobalLlm = true } = {}) {
   if (cycleState[name]) {
     log("cron", `${name} cycle skipped (already running)`);
@@ -177,7 +186,7 @@ cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {
   runReviewCycle().catch((error) => log("cron_error", `Review cycle failed: ${error.message}`));
 });
 
-cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
+cron.schedule(buildManagementScheduleExpression(config.schedule.observerIntervalMin), () => {
   runManagementCycle().catch((error) => log("cron_error", `Management cycle failed: ${error.message}`));
 });
 
