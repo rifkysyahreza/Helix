@@ -4,12 +4,23 @@ import { recordExecutionIncident } from "./execution-incidents.js";
 
 const FILE = "./runtime-data/runtime-resilience.json";
 
+function defaultState() {
+  return {
+    startedAt: null,
+    lastHeartbeatAt: null,
+    restarts: 0,
+    dirtyRestartDetected: false,
+    openTradesAtStart: [],
+    lastWatchdogIncidentAt: null,
+  };
+}
+
 function load() {
-  if (!fs.existsSync(FILE)) return { startedAt: null, lastHeartbeatAt: null, restarts: 0, dirtyRestartDetected: false };
+  if (!fs.existsSync(FILE)) return defaultState();
   try {
-    return JSON.parse(fs.readFileSync(FILE, "utf8"));
+    return { ...defaultState(), ...JSON.parse(fs.readFileSync(FILE, "utf8")) };
   } catch {
-    return { startedAt: null, lastHeartbeatAt: null, restarts: 0, dirtyRestartDetected: false };
+    return defaultState();
   }
 }
 
@@ -22,9 +33,11 @@ export function markRuntimeStart() {
   const state = load();
   const openTrades = listRecentTrades(200).filter((trade) => trade.status === "open");
   const dirtyRestartDetected = Boolean(state.startedAt && openTrades.length > 0);
+  const now = new Date().toISOString();
   const next = {
     ...state,
-    startedAt: new Date().toISOString(),
+    startedAt: now,
+    lastHeartbeatAt: now,
     restarts: Number(state.restarts || 0) + 1,
     dirtyRestartDetected,
     openTradesAtStart: openTrades.map((trade) => ({ tradeId: trade.tradeId, symbol: trade.symbol, lifecyclePhase: trade.lifecyclePhase })),
@@ -47,13 +60,21 @@ export function getRuntimeResilienceState() {
   return load();
 }
 
-export function evaluateRuntimeWatchdog({ staleMs = 10 * 60 * 1000 } = {}) {
+export function evaluateRuntimeWatchdog({ staleMs = 10 * 60 * 1000, recordIncident = false, dedupeMs = 5 * 60 * 1000 } = {}) {
   const state = load();
   const last = state.lastHeartbeatAt ? new Date(state.lastHeartbeatAt).getTime() : null;
   const stale = !last || (Date.now() - last) > staleMs;
-  if (stale) {
-    recordExecutionIncident({ kind: "runtime_watchdog_stale", lastHeartbeatAt: state.lastHeartbeatAt || null, staleMs });
+
+  if (stale && recordIncident) {
+    const lastIncidentAt = state.lastWatchdogIncidentAt ? new Date(state.lastWatchdogIncidentAt).getTime() : null;
+    const shouldRecord = !lastIncidentAt || (Date.now() - lastIncidentAt) > dedupeMs;
+    if (shouldRecord) {
+      recordExecutionIncident({ kind: "runtime_watchdog_stale", lastHeartbeatAt: state.lastHeartbeatAt || null, staleMs });
+      state.lastWatchdogIncidentAt = new Date().toISOString();
+      save(state);
+    }
   }
+
   return {
     stale,
     staleMs,

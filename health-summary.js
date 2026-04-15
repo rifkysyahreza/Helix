@@ -27,7 +27,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const incidents = summarizeExecutionIncidents(200);
   const runtimeResilience = getRuntimeResilienceState();
   const watchdog = evaluateRuntimeWatchdog();
-  const startupRecoveryPreview = await runStartupRecovery({ autoAct: false }).catch(() => null);
+  const startupRecoveryPreview = await runStartupRecovery({ autoAct: false, previewOnly: true }).catch(() => null);
   const streamHealth = evaluateStreamHealth();
   const streamRuntime = getStreamSubscriptionsRuntime();
   const autonomySession = buildAutonomySessionState();

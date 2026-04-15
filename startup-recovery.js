@@ -3,9 +3,9 @@ import { reconcileExecutionLeftovers } from "./reconciliation.js";
 import { runAutonomousManagementPass } from "./autonomous-manager.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
 
-export async function runStartupRecovery({ autoAct = true, limit = 200 } = {}) {
+export async function runStartupRecovery({ autoAct = true, limit = 200, previewOnly = false } = {}) {
   const runtime = getRuntimeResilienceState();
-  const watchdog = evaluateRuntimeWatchdog({ staleMs: 60 * 60 * 1000 });
+  const watchdog = evaluateRuntimeWatchdog({ staleMs: 60 * 60 * 1000, recordIncident: !previewOnly });
   const needsRecovery = Boolean(runtime.dirtyRestartDetected || watchdog.stale);
 
   if (!needsRecovery) {
@@ -20,11 +20,13 @@ export async function runStartupRecovery({ autoAct = true, limit = 200 } = {}) {
   const reconciliation = await reconcileExecutionLeftovers(limit).catch((error) => ({ error: error.message }));
   const management = await runAutonomousManagementPass({ autoAct }).catch((error) => ({ error: error.message }));
 
-  recordExecutionIncident({
-    kind: "startup_recovery_run",
-    dirtyRestartDetected: Boolean(runtime.dirtyRestartDetected),
-    watchdogStale: Boolean(watchdog.stale),
-  });
+  if (!previewOnly) {
+    recordExecutionIncident({
+      kind: "startup_recovery_run",
+      dirtyRestartDetected: Boolean(runtime.dirtyRestartDetected),
+      watchdogStale: Boolean(watchdog.stale),
+    });
+  }
 
   return {
     recovered: true,
