@@ -15,11 +15,16 @@ import { repairStreamHealth, evaluateStreamHealth } from "./stream-health.js";
 import { clearMarketStreamSnapshots } from "./market-stream-state.js";
 import { buildBurnInRunbookStatus } from "./burn-in-runbook.js";
 import { buildFirstPaperBurnInPlan } from "./burn-in-session-plan.js";
+import { getBurnInState, startBurnIn, recordBurnInEvent } from "./burn-in.js";
 
 log("startup", "Helix starting...");
 const runtimeResilience = markRuntimeStart();
 clearMarketStreamSnapshots();
 log("startup", `Runtime resilience: ${JSON.stringify(runtimeResilience)}`);
+const burnInState = getBurnInState();
+if (!burnInState.enabled && config.execution.mode === "paper") {
+  startBurnIn({ mode: "paper", stage: "paper", note: "auto-started during paper runtime" });
+}
 runStartupRecovery({ autoAct: config.execution.mode === "autonomous" })
   .then((result) => log("startup", `Startup recovery: ${JSON.stringify({ recovered: result.recovered, reason: result.reason || null })}`))
   .catch((error) => log("startup", `Startup recovery failed: ${error.message}`));
@@ -87,6 +92,9 @@ async function runObserverCycle() {
       { requireTool: true },
     );
     log("cycle", `Observer result: ${(result.content || "").slice(0, 300)}`);
+    if (config.execution.mode === "paper") {
+      recordBurnInEvent({ paperCycle: true, successfulExecution: true, note: "observer_cycle_completed" });
+    }
     return result;
   });
 }
@@ -105,6 +113,9 @@ async function runPlannerCycle() {
       { requireTool: true },
     );
     log("cycle", `Planner result: ${(result.content || "").slice(0, 300)}`);
+    if (config.execution.mode === "approval") {
+      recordBurnInEvent({ approvalCycle: true, approvalReviewed: true, successfulExecution: true, note: "planner_cycle_completed" });
+    }
     return result;
   });
 }
@@ -145,6 +156,11 @@ async function runManagementCycle() {
       { requireTool: true },
     );
     log("cycle", `Management result: ${(result.content || "").slice(0, 300)}`);
+    if (config.execution.mode === "paper") {
+      recordBurnInEvent({ paperCycle: true, successfulExecution: true, note: "management_cycle_completed" });
+    } else if (config.execution.mode === "approval") {
+      recordBurnInEvent({ approvalCycle: true, approvalReviewed: true, successfulExecution: true, note: "management_cycle_completed" });
+    }
     return result;
   });
 }
