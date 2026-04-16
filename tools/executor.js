@@ -1132,6 +1132,7 @@ const toolMap = {
         pending: intents.filter((item) => item.status === "pending").length,
         approved: intents.filter((item) => item.status === "approved").length,
         rejected: intents.filter((item) => item.status === "rejected").length,
+        approvalFailed: intents.filter((item) => item.status === "approval_failed").length,
         expired: intents.filter((item) => item.status === "expired").length,
       },
     };
