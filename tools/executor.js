@@ -690,18 +690,53 @@ const toolMap = {
     }
 
     const proposal = await toolMap.propose_trade({ symbol, side });
+    const requestedSizeUsd = sizeUsd ?? proposal.sizeUsd;
     const execution = await openPerpPosition({
       symbol,
       side,
-      sizeUsd: sizeUsd ?? proposal.sizeUsd,
+      sizeUsd: requestedSizeUsd,
       leverage,
       asset: proposal.snapshot?.assetIndex,
       price: proposal.snapshot?.markPx || proposal.snapshot?.midPx || 1,
-      size: sizeUsd ?? proposal.sizeUsd,
+      size: requestedSizeUsd,
       executionTactics: proposal.executionTactics,
     });
     if (!execution.success) {
       return execution;
+    }
+
+    if (execution.requiresApproval) {
+      const intent = {
+        type: "open_position",
+        symbol,
+        side,
+        sizeUsd: requestedSizeUsd,
+        leverage,
+        thesis: thesis || proposal.thesis,
+        stopLossPct: stopLossPct ?? proposal.stopLoss,
+        takeProfitPct: takeProfitPct ?? proposal.takeProfit,
+        asset: proposal.snapshot?.assetIndex,
+        price: proposal.snapshot?.markPx || proposal.snapshot?.midPx || 1,
+        size: requestedSizeUsd,
+        executionTactics: proposal.executionTactics,
+      };
+      const pending = addPendingIntent({
+        source: "place_order",
+        coin: symbol,
+        side,
+        intent,
+        thesis: thesis || proposal.thesis,
+        proposalMode: proposal.mode,
+        executionPreview: execution.execution,
+      });
+      return {
+        mode: execution.context.mode,
+        placed: false,
+        requiresApproval: true,
+        pending,
+        proposal,
+        execution,
+      };
     }
     const liveStatuses = execution?.execution?.result?.response?.data?.statuses || [];
     const firstStatus = liveStatuses[0] || null;
@@ -767,11 +802,12 @@ const toolMap = {
     const matchingPosition = account?.positions?.find((position) => position.coin === existing.symbol);
     const { reducePerpPosition } = await import("../execution.js");
     const proposal = await toolMap.propose_trade({ symbol: existing.symbol, side: existing.side });
+    const requestedReduceSize = matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null;
     const execution = await reducePerpPosition({
       symbol: existing.symbol,
       side: existing.side,
       reducePct,
-      size: matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null,
+      size: requestedReduceSize,
       livePosition: matchingPosition || null,
       executionTactics: proposal.executionTactics,
     });
@@ -779,8 +815,33 @@ const toolMap = {
       return execution;
     }
 
+    if (execution.requiresApproval) {
+      const intent = {
+        type: "reduce_position",
+        symbol: existing.symbol,
+        side: existing.side,
+        reducePct,
+        size: requestedReduceSize,
+        executionTactics: proposal.executionTactics,
+      };
+      const pending = addPendingIntent({
+        source: "reduce_position",
+        coin: existing.symbol,
+        side: existing.side,
+        intent,
+        reason: reason || null,
+        tradeId,
+        executionPreview: execution.execution,
+      });
+      return {
+        reduced: false,
+        requiresApproval: true,
+        pending,
+        execution,
+      };
+    }
+
     const verification = summarizeExecutionResult(execution?.execution?.result);
-    const requestedReduceSize = matchingPosition ? Math.abs(Number(matchingPosition.szi || 0)) * ((reducePct || 0) / 100) : null;
     const remainingReduceSize = requestedReduceSize != null ? Math.max(0, requestedReduceSize - (verification.totalFilledSize || 0)) : null;
     updateTradeExecutionState(tradeId, {
       lastIntentAction: "reduce",
@@ -828,6 +889,30 @@ const toolMap = {
     const execution = await closePerpPosition({ trade: existing, livePosition: matchingPosition || null, executionTactics: proposal.executionTactics });
     if (!execution.success) {
       return execution;
+    }
+    if (execution.requiresApproval) {
+      const intent = {
+        type: "close_position",
+        symbol: existing.symbol,
+        side: existing.side,
+        tradeId,
+        executionTactics: proposal.executionTactics,
+      };
+      const pending = addPendingIntent({
+        source: "close_position",
+        coin: existing.symbol,
+        side: existing.side,
+        intent,
+        reason: reason || null,
+        tradeId,
+        executionPreview: execution.execution,
+      });
+      return {
+        closed: false,
+        requiresApproval: true,
+        pending,
+        execution,
+      };
     }
     const verification = summarizeExecutionResult(execution?.execution?.result);
     if (execution?.execution?.result) {

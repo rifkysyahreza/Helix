@@ -242,20 +242,17 @@ function deriveReduceExecutionPolicy(params = {}) {
 
 export async function reducePerpPosition({ symbol, side, reducePct = 100, size = null, livePosition = null, executionTactics = null }) {
   const context = buildExecutionContext();
-  const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
-  const risk = validateCloseRisk({ trade: { symbol, side, status: "open" }, account });
-  if (!risk.ok) {
-    recordExecutionIncident({ kind: reducePct >= 100 ? "close_risk_block" : "reduce_risk_block", symbol, side, reducePct, issues: risk.issues, context });
-    return { success: false, blocked: true, risk, context };
-  }
-
   const reducePolicy = deriveReduceExecutionPolicy({ executionTactics, reducePct });
 
   if (context.mode === "approval") {
     return {
       success: true,
       requiresApproval: true,
-      risk,
+      risk: {
+        ok: true,
+        issues: [],
+        approvalWithoutLivePosition: !livePosition,
+      },
       context,
       execution: {
         mode: context.mode,
@@ -268,6 +265,13 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
         note: "Approval mode: generated exact reduce intent but did not execute.",
       },
     };
+  }
+
+  const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
+  const risk = validateCloseRisk({ trade: { symbol, side, status: "open" }, account });
+  if (!risk.ok) {
+    recordExecutionIncident({ kind: reducePct >= 100 ? "close_risk_block" : "reduce_risk_block", symbol, side, reducePct, issues: risk.issues, context });
+    return { success: false, blocked: true, risk, context };
   }
 
   if (context.mode === "autonomous") {
@@ -370,18 +374,16 @@ export async function reducePerpPosition({ symbol, side, reducePct = 100, size =
 
 export async function closePerpPosition({ trade, livePosition = null, executionTactics = null }) {
   const context = buildExecutionContext();
-  const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
-  const risk = validateCloseRisk({ trade, account });
-  if (!risk.ok) {
-    recordExecutionIncident({ kind: "close_risk_block", tradeId: trade.tradeId, symbol: trade.symbol, side: trade.side, issues: risk.issues, context });
-    return { success: false, blocked: true, risk, context };
-  }
 
   if (context.mode === "approval") {
     return {
       success: true,
       requiresApproval: true,
-      risk,
+      risk: {
+        ok: true,
+        issues: [],
+        approvalWithoutLivePosition: !livePosition,
+      },
       context,
       execution: {
         mode: context.mode,
@@ -392,6 +394,13 @@ export async function closePerpPosition({ trade, livePosition = null, executionT
         note: "Approval mode: generated exact close intent but did not execute.",
       },
     };
+  }
+
+  const account = livePosition ? { positions: [livePosition] } : await getNormalizedAccountState().catch(() => null);
+  const risk = validateCloseRisk({ trade, account });
+  if (!risk.ok) {
+    recordExecutionIncident({ kind: "close_risk_block", tradeId: trade.tradeId, symbol: trade.symbol, side: trade.side, issues: risk.issues, context });
+    return { success: false, blocked: true, risk, context };
   }
 
   if (context.mode === "autonomous") {
