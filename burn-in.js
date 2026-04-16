@@ -47,11 +47,19 @@ function noteMatchesMode(noteEntry, mode) {
   return noteMode === mode;
 }
 
+function requiredCyclesForStage(stage = "paper") {
+  if (stage === "approval") return 5;
+  if (stage === "autonomous" || stage === "autonomous_tiny") return 3;
+  return 10;
+}
+
 function finalizeSummary(summary) {
+  const currentStage = summary.currentMode || summary.stage || summary.mode || "paper";
   const scoreBase = Math.max(1, summary.cycles || 1);
   const reliabilityScore = Number(((summary.successfulExecutions - summary.blockedExecutions - summary.severeIncidents - summary.errorEvents - summary.iocCancelEvents * 0.5 - summary.streamFailures) / scoreBase).toFixed(2));
+  const requiredCycles = requiredCyclesForStage(currentStage);
   const promotionReady = summary.enabled
-    && summary.cycles >= 5
+    && summary.cycles >= requiredCycles
     && summary.severeIncidents === 0
     && summary.driftEvents <= 1
     && summary.iocCancelEvents <= 1
@@ -60,6 +68,7 @@ function finalizeSummary(summary) {
 
   return {
     ...summary,
+    requiredCycles,
     reliabilityScore,
     promotionReady,
   };
@@ -71,6 +80,8 @@ function summarizeForMode(state, mode = getCurrentMode()) {
     ...state,
     currentMode: mode,
     notes,
+    allTimeCycles: state.cycles,
+    allTimeApprovalsReviewed: state.approvalsReviewed,
   };
 
   if (mode === "paper") {

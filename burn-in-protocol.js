@@ -1,4 +1,4 @@
-import { summarizeBurnInStateForMode } from "./burn-in.js";
+import { summarizeBurnInState, summarizeBurnInStateForMode } from "./burn-in.js";
 import { getNormalizedAccountState } from "./account-state.js";
 import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
 import { buildCompoundingContext } from "./compounding.js";
@@ -9,8 +9,8 @@ export function buildBurnInChecklist({ burnIn = null, goLive = null } = {}) {
   const live = goLive || null;
 
   const checklist = [
-    { key: "paper_cycles", label: "Paper cycles completed", pass: state.stage === "paper" ? state.cycles >= 10 : state.paperCycles >= 10 },
-    { key: "approval_cycles", label: "Approval cycles reviewed", pass: state.stage === "approval" ? state.approvalsReviewed >= 5 : state.approvalCycles >= 5 },
+    { key: "paper_cycles", label: "Paper cycles completed", pass: state.paperCycles >= 10 },
+    { key: "approval_cycles", label: "Approval cycles reviewed", pass: state.approvalCycles >= 5 },
     { key: "no_severe_incidents", label: "No severe incidents", pass: state.severeIncidents === 0 },
     { key: "low_drift", label: "Drift controlled", pass: state.driftEvents <= 1 },
     { key: "low_errors", label: "No execution errors", pass: state.errorEvents === 0 },
@@ -29,6 +29,7 @@ export function buildBurnInChecklist({ burnIn = null, goLive = null } = {}) {
 export async function buildBurnInProtocolSummary() {
   const currentMode = config.execution.mode || "paper";
   const burnIn = summarizeBurnInStateForMode(currentMode);
+  const allTimeBurnIn = summarizeBurnInState();
   const account = await getNormalizedAccountState().catch(() => null);
   const reliability = buildExecutionReliabilitySummary(300, { mode: currentMode });
   const compounding = buildCompoundingContext({ limit: 300, account });
@@ -45,6 +46,7 @@ export async function buildBurnInProtocolSummary() {
 
   return {
     burnIn,
+    allTimeBurnIn,
     lightweightGoLive,
     checklist,
     nextStageRecommendation: currentMode === "paper"
