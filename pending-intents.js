@@ -17,8 +17,27 @@ function save(data) {
   fs.writeFileSync(PENDING_FILE, JSON.stringify(data, null, 2));
 }
 
+function findDuplicatePendingIntent(intents, intent) {
+  return intents.find((item) => {
+    if (item.status !== "pending") return false;
+    if (item.source !== intent.source) return false;
+    if ((item.tradeId || null) !== (intent.tradeId || null)) return false;
+    if ((item.coin || null) !== (intent.coin || null)) return false;
+    if ((item.side || null) !== (intent.side || null)) return false;
+    return JSON.stringify(item.intent || {}) === JSON.stringify(intent.intent || {});
+  }) || null;
+}
+
 export function addPendingIntent(intent) {
   const data = load();
+  const duplicate = findDuplicatePendingIntent(data.intents, intent);
+  if (duplicate) {
+    return {
+      ...duplicate,
+      deduped: true,
+    };
+  }
+
   const now = new Date();
   const id = `intent-${Date.now()}`;
   const ttlMs = getPendingIntentTtlMs();
