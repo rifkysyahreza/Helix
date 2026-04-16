@@ -1,5 +1,8 @@
 import assert from "assert";
-import { buildHealthSummary } from "../health-summary.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
+
+setupIsolatedTestEnv("helix-health-summary-");
+const { buildHealthSummary } = await import("../health-summary.js");
 
 async function run() {
   const report = await buildHealthSummary({ limit: 20 });
