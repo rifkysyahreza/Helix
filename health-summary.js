@@ -42,6 +42,9 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   const drifts = reconciliation?.drifts || [];
   const lifecycleRepairs = reconciliation?.lifecycleRepairs || [];
 
+  const currentBurnIn = burnInProtocol?.burnIn || null;
+  const allTimeBurnIn = burnInProtocol?.allTimeBurnIn || null;
+
   const summaryLines = [];
   summaryLines.push(`Open trades: ${openTrades.length}`);
   summaryLines.push(`Closed trades: ${closedTrades.length}`);
@@ -57,6 +60,13 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   summaryLines.push(`Stream health healthy: ${streamHealth.healthy}`);
   summaryLines.push(`Stream reconnects: ${streamRuntime.reconnects || 0}`);
   summaryLines.push(`Daily lockout: ${autonomySession.dailyLockout}`);
+  if (currentBurnIn) {
+    summaryLines.push(`Burn-in stage progress: ${currentBurnIn.cycles}/${currentBurnIn.requiredCycles} (${currentBurnIn.currentMode})`);
+    summaryLines.push(`Burn-in stage ready: ${currentBurnIn.promotionReady}`);
+  }
+  if (allTimeBurnIn) {
+    summaryLines.push(`Burn-in all-time cycles: ${allTimeBurnIn.cycles}`);
+  }
   summaryLines.push(`Burn-in next stage: ${burnInProtocol?.nextStageRecommendation || "unknown"}`);
 
   if (reliability.worstSymbols?.length) {
@@ -90,6 +100,8 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     streamHealth,
     streamRuntime,
     autonomySession,
+    burnIn: currentBurnIn,
+    burnInAllTime: allTimeBurnIn,
     burnInProtocol,
     performance: perf,
     summaryLines,
