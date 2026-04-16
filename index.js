@@ -57,10 +57,10 @@ const cycleState = {
   llmGlobal: false,
 };
 
-function buildManagementScheduleExpression(intervalMin) {
+function buildOffsetScheduleExpression(intervalMin, offset = 0) {
   if (!Number.isFinite(intervalMin) || intervalMin <= 1) return "* * * * *";
   const minutes = [];
-  for (let minute = 1; minute < 60; minute += intervalMin) {
+  for (let minute = offset; minute < 60; minute += intervalMin) {
     minutes.push(minute);
   }
   return `${minutes.join(",")} * * * *`;
@@ -180,7 +180,7 @@ cron.schedule(`*/${config.schedule.observerIntervalMin} * * * *`, () => {
   runObserverCycle().catch((error) => log("cron_error", `Observer cycle failed: ${error.message}`));
 });
 
-cron.schedule(`*/${config.schedule.plannerIntervalMin} * * * *`, () => {
+cron.schedule(buildOffsetScheduleExpression(config.schedule.plannerIntervalMin, 2), () => {
   runPlannerCycle().catch((error) => log("cron_error", `Planner cycle failed: ${error.message}`));
 });
 
@@ -188,12 +188,12 @@ cron.schedule(`*/${config.schedule.reviewIntervalMin} * * * *`, () => {
   runReviewCycle().catch((error) => log("cron_error", `Review cycle failed: ${error.message}`));
 });
 
-cron.schedule(buildManagementScheduleExpression(config.schedule.observerIntervalMin), () => {
+cron.schedule(buildOffsetScheduleExpression(config.schedule.observerIntervalMin, 1), () => {
   runManagementCycle().catch((error) => log("cron_error", `Management cycle failed: ${error.message}`));
 });
 
 console.log("\nHelix runtime is live.");
-console.log("Commands: /status, /health, /audit, /drill, /burn-in start [paper|approval], /burn-in stop, /burn-in status, /burn-in runbook, /burn-in plan, /watch, /manage, /maintain, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
+console.log("Commands: /status, /health, /audit, /drill, /burn-in start [paper|approval], /burn-in stop, /burn-in status, /burn-in runbook, /burn-in plan, /watch, /plan, /manage, /maintain, /pending, /review, /sync, /halt, /resume, /close-only on|off, /suspend <symbol>, /unsuspend <symbol>, /paper-long <symbol>, /paper-short <symbol>, /stop\n");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -282,6 +282,9 @@ rl.on("line", async (line) => {
         { requireTool: true },
       );
       console.log(result.content || "No response.");
+    } else if (input === "/plan") {
+      const result = await runPlannerCycle();
+      console.log(result?.content || "No response.");
     } else if (input === "/review") {
       const result = await agentLoop(
         "Review recent Helix journal notes and summarize lessons.",
