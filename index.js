@@ -87,6 +87,15 @@ async function runSingleFlightCycle(name, fn, { requiresGlobalLlm = true } = {})
   }
 }
 
+async function refreshHealthSummary(reason = "runtime_cycle") {
+  try {
+    await buildHealthSummary({ limit: 100 });
+    log("health", `Health summary refreshed (${reason})`);
+  } catch (error) {
+    log("health", `Health summary refresh failed (${reason}): ${error.message}`);
+  }
+}
+
 async function runObserverCycle() {
   return runSingleFlightCycle("observer", async () => {
     markRuntimeHeartbeat();
@@ -106,6 +115,7 @@ async function runObserverCycle() {
     if (config.execution.mode === "paper") {
       recordBurnInEvent({ paperCycle: true, successfulExecution: true, note: "observer_cycle_completed" });
     }
+    await refreshHealthSummary("observer_cycle_completed");
     return result;
   });
 }
@@ -127,6 +137,7 @@ async function runPlannerCycle() {
     if (config.execution.mode === "approval") {
       recordBurnInEvent({ approvalCycle: true, approvalReviewed: true, successfulExecution: true, note: "planner_cycle_completed" });
     }
+    await refreshHealthSummary("planner_cycle_completed");
     return result;
   });
 }
@@ -172,6 +183,7 @@ async function runManagementCycle() {
     } else if (config.execution.mode === "approval") {
       recordBurnInEvent({ approvalCycle: true, approvalReviewed: true, successfulExecution: true, note: "management_cycle_completed" });
     }
+    await refreshHealthSummary("management_cycle_completed");
     return result;
   });
 }
@@ -315,6 +327,7 @@ rl.on("line", async (line) => {
       } else if (config.execution.mode === "approval") {
         recordBurnInEvent({ approvalCycle: true, approvalReviewed: true, successfulExecution: true, note: "manual_maintain_completed" });
       }
+      await refreshHealthSummary("manual_maintain_completed");
       console.log(JSON.stringify(maintenance, null, 2));
     } else if (input === "/pending") {
       const result = await agentLoop(
