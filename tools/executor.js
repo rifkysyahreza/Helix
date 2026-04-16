@@ -1147,7 +1147,7 @@ const toolMap = {
 
     if (decision === "approved") {
       const replay = await replayApprovedIntent(current);
-      const finalDecision = replay?.success ? decision : "rejected";
+      const finalDecision = replay?.success ? decision : "approval_failed";
       const reconciliation = await reconcileExecutionLeftovers(200).catch(() => null);
       const resolved = resolvePendingIntent(id, finalDecision, { replay, reconciliation, requestedDecision: decision });
       return { resolved, replay, reconciliation };
