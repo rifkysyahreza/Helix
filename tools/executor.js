@@ -5,6 +5,10 @@ import { config } from "../config.js";
 import { fetchMetaAndAssetContexts, fetchAllMids, fetchClearingState, fetchCandles, fetchFunding, fetchL2Book, buildSymbolSnapshot } from "./hyperliquid.js";
 import { createTradeRecord, reduceTradeRecord, closeTradeRecord, listRecentTrades, updateTradeExchange, updateTradeExecutionState } from "../state.js";
 import { openPerpPosition, closePerpPosition } from "../execution.js";
+
+function currentExecutionMode() {
+  return process.env.HELIX_EXECUTION_MODE || (process.env.HELIX_ENABLE_LIVE_EXECUTION === "true" ? "autonomous" : (process.env.DRY_RUN === "true" ? "dry-run" : "paper"));
+}
 import { syncTradesWithExchange } from "../sync.js";
 import { getNormalizedAccountState } from "../account-state.js";
 import { buildPerformanceProfile, getPerformanceProfileSummary } from "../performance-profile.js";
@@ -648,7 +652,7 @@ const toolMap = {
     return {
       symbol,
       side,
-      mode: process.env.DRY_RUN === "true" ? "dry-run" : "live",
+      mode: currentExecutionMode(),
       tradeVeto: analysis.tradeVeto,
       entryStyle: analysis.entryStyle,
       thesis: builtThesis.thesis,
