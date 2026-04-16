@@ -1,9 +1,12 @@
 import assert from "assert";
 import fs from "fs";
-import { startBurnIn, recordBurnInEvent } from "../burn-in.js";
-import { buildBurnInProtocolSummary } from "../burn-in-protocol.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
 
-const FILE = "./runtime-data/burn-in-state.json";
+setupIsolatedTestEnv("helix-burn-in-protocol-");
+const { startBurnIn, recordBurnInEvent } = await import("../burn-in.js");
+const { buildBurnInProtocolSummary } = await import("../burn-in-protocol.js");
+
+const FILE = process.env.HELIX_BURN_IN_FILE;
 
 function cleanup() {
   if (fs.existsSync(FILE)) fs.unlinkSync(FILE);

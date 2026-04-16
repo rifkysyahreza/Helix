@@ -1,6 +1,8 @@
 import fs from "fs";
+import path from "path";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const FILE = "./runtime-data/microstructure-state.json";
+const FILE = getRuntimeDataFile("microstructure-state.json", "HELIX_MICROSTRUCTURE_STATE_FILE");
 const MAX_HISTORY = 200;
 
 function load() {

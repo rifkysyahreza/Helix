@@ -1,6 +1,8 @@
 import fs from "fs";
+import path from "path";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const FILE = "./runtime-data/stream-runtime-state.json";
+const FILE = getRuntimeDataFile("stream-runtime-state.json", "HELIX_STREAM_RUNTIME_STATE_FILE");
 
 function load() {
   if (!fs.existsSync(FILE)) return { reconnects: 0, failures: [], symbols: {}, updatedAt: null };

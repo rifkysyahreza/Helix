@@ -1,11 +1,14 @@
 import assert from "assert";
 import fs from "fs";
-import { executeTool } from "../tools/executor.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
 
-const FILE = "./runtime-data/pending-intents.json";
+setupIsolatedTestEnv("helix-pending-summary-");
+const { executeTool } = await import("../tools/executor.js");
+
+const FILE = process.env.HELIX_PENDING_INTENTS_FILE;
 
 function writeFixture() {
-  fs.mkdirSync("./runtime-data", { recursive: true });
+  fs.mkdirSync(process.env.HELIX_RUNTIME_DATA_DIR, { recursive: true });
   fs.writeFileSync(FILE, JSON.stringify({
     intents: [
       { id: "1", status: "pending" },

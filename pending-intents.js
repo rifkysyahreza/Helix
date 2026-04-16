@@ -1,7 +1,9 @@
 import fs from "fs";
+import path from "path";
 import { getPendingIntentTtlMs } from "./operator-controls.js";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const PENDING_FILE = "./runtime-data/pending-intents.json";
+const PENDING_FILE = getRuntimeDataFile("pending-intents.json", "HELIX_PENDING_INTENTS_FILE");
 
 function load() {
   if (!fs.existsSync(PENDING_FILE)) return { intents: [] };

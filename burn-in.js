@@ -1,7 +1,9 @@
 import fs from "fs";
+import path from "path";
 import { config } from "./config.js";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const BURN_IN_FILE = "./runtime-data/burn-in-state.json";
+const BURN_IN_FILE = getRuntimeDataFile("burn-in-state.json", "HELIX_BURN_IN_FILE");
 
 function defaultState() {
   return {

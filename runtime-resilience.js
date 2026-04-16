@@ -1,8 +1,10 @@
 import fs from "fs";
+import path from "path";
 import { listRecentTrades } from "./state.js";
 import { recordExecutionIncident } from "./execution-incidents.js";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const FILE = "./runtime-data/runtime-resilience.json";
+const FILE = getRuntimeDataFile("runtime-resilience.json", "HELIX_RUNTIME_RESILIENCE_FILE");
 
 function defaultState() {
   return {

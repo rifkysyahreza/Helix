@@ -1,7 +1,9 @@
 import fs from "fs";
+import path from "path";
 import { config } from "./config.js";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const INCIDENTS_FILE = "./runtime-data/execution-incidents.jsonl";
+const INCIDENTS_FILE = getRuntimeDataFile("execution-incidents.jsonl", "HELIX_EXECUTION_INCIDENTS_FILE");
 
 function getCurrentMode() {
   return config.execution.mode || "paper";

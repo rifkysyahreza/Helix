@@ -1,6 +1,7 @@
 import fs from "fs";
+import { getStateFilePath } from "./storage-paths.js";
 
-const STATE_FILE = "./state.json";
+const STATE_FILE = getStateFilePath();
 
 function normalizeSymbol(symbol) {
   return String(symbol || "").trim().toUpperCase();

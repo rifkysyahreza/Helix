@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import { listRecentTrades } from "./state.js";
 import { listPendingIntents } from "./pending-intents.js";
 import { getOperatorControls } from "./operator-controls.js";
@@ -15,6 +16,7 @@ import { getStreamSubscriptionsRuntime } from "./market-stream.js";
 import { buildAutonomySessionState } from "./autonomy-session-state.js";
 import { buildBurnInProtocolSummary } from "./burn-in-protocol.js";
 import { config } from "./config.js";
+import { getRuntimeDataDir, getRuntimeDataFile } from "./storage-paths.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
   const trades = listRecentTrades(limit);
@@ -93,7 +95,9 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
     summaryLines,
   };
 
-  fs.mkdirSync("./runtime-data", { recursive: true });
-  fs.writeFileSync("./runtime-data/health-summary.json", JSON.stringify(report, null, 2));
+  const runtimeDataDir = getRuntimeDataDir();
+  const healthSummaryFile = getRuntimeDataFile("health-summary.json", "HELIX_HEALTH_SUMMARY_FILE");
+  fs.mkdirSync(runtimeDataDir, { recursive: true });
+  fs.writeFileSync(healthSummaryFile, JSON.stringify(report, null, 2));
   return report;
 }

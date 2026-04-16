@@ -1,7 +1,9 @@
 import fs from "fs";
+import path from "path";
 import { listRecentTrades } from "./state.js";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const FILE = "./runtime-data/autonomy-session-state.json";
+const FILE = getRuntimeDataFile("autonomy-session-state.json", "HELIX_AUTONOMY_SESSION_STATE_FILE");
 
 function load() {
   if (!fs.existsSync(FILE)) return { updatedAt: null, cooldownSymbols: {}, dailyLockout: false, sessionDegraded: false, reasons: [] };

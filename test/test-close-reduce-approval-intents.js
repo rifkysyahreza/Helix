@@ -1,9 +1,12 @@
 import assert from "assert";
 import fs from "fs";
-import { createTradeRecord } from "../state.js";
-import { executeTool } from "../tools/executor.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
 
-const PENDING_FILE = "./runtime-data/pending-intents.json";
+setupIsolatedTestEnv("helix-close-reduce-");
+const { createTradeRecord } = await import("../state.js");
+const { executeTool } = await import("../tools/executor.js");
+
+const PENDING_FILE = process.env.HELIX_PENDING_INTENTS_FILE;
 
 function cleanup() {
   if (fs.existsSync(PENDING_FILE)) fs.unlinkSync(PENDING_FILE);

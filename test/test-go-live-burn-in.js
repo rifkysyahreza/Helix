@@ -1,6 +1,9 @@
 import assert from "assert";
-import { buildGoLiveCheck } from "../go-live-check.js";
-import { startBurnIn, stopBurnIn, recordBurnInEvent } from "../burn-in.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
+
+setupIsolatedTestEnv("helix-go-live-");
+const { buildGoLiveCheck } = await import("../go-live-check.js");
+const { startBurnIn, stopBurnIn, recordBurnInEvent } = await import("../burn-in.js");
 
 async function run() {
   startBurnIn({ mode: "paper" });

@@ -1,6 +1,8 @@
 import fs from "fs";
+import path from "path";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const CONTROLS_FILE = "./runtime-data/operator-controls.json";
+const CONTROLS_FILE = getRuntimeDataFile("operator-controls.json", "HELIX_OPERATOR_CONTROLS_FILE");
 const DEFAULT_INTENT_TTL_MS = Number(process.env.HELIX_PENDING_INTENT_TTL_MS || 30 * 60 * 1000);
 
 function loadControls() {

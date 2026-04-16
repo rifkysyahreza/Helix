@@ -1,9 +1,12 @@
 import assert from "assert";
 import fs from "fs";
-import { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } from "../runtime-resilience.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
 
-const FILE = "./runtime-data/runtime-resilience.json";
-const INCIDENTS_FILE = "./runtime-data/execution-incidents.jsonl";
+setupIsolatedTestEnv("helix-runtime-resilience-");
+const { markRuntimeStart, markRuntimeHeartbeat, evaluateRuntimeWatchdog } = await import("../runtime-resilience.js");
+
+const FILE = process.env.HELIX_RUNTIME_RESILIENCE_FILE;
+const INCIDENTS_FILE = process.env.HELIX_EXECUTION_INCIDENTS_FILE;
 
 function cleanup() {
   if (fs.existsSync(FILE)) fs.unlinkSync(FILE);

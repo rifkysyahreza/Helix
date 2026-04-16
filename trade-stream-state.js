@@ -1,6 +1,8 @@
 import fs from "fs";
+import path from "path";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const FILE = "./runtime-data/trade-stream-state.json";
+const FILE = getRuntimeDataFile("trade-stream-state.json", "HELIX_TRADE_STREAM_STATE_FILE");
 const MAX_TRADES = 500;
 
 function load() {

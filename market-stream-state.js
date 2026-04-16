@@ -1,6 +1,8 @@
 import fs from "fs";
+import path from "path";
+import { getRuntimeDataFile } from "./storage-paths.js";
 
-const STREAM_FILE = "./runtime-data/market-stream-state.json";
+const STREAM_FILE = getRuntimeDataFile("market-stream-state.json", "HELIX_MARKET_STREAM_STATE_FILE");
 
 function load() {
   if (!fs.existsSync(STREAM_FILE)) return { symbols: {}, updatedAt: null };

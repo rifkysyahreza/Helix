@@ -1,8 +1,11 @@
 import assert from "assert";
 import fs from "fs";
-import { addPendingIntent, listPendingIntents } from "../pending-intents.js";
+import { setupIsolatedTestEnv } from "./test-env.js";
 
-const FILE = "./runtime-data/pending-intents.json";
+setupIsolatedTestEnv("helix-pending-dedupe-");
+const { addPendingIntent, listPendingIntents } = await import("../pending-intents.js");
+
+const FILE = process.env.HELIX_PENDING_INTENTS_FILE;
 
 function cleanup() {
   if (fs.existsSync(FILE)) fs.unlinkSync(FILE);
