@@ -1,4 +1,5 @@
 import fs from "fs";
+import { config } from "./config.js";
 
 const BURN_IN_FILE = "./runtime-data/burn-in-state.json";
 
@@ -23,6 +24,64 @@ function defaultState() {
     streamFailures: 0,
     notes: [],
   };
+}
+
+function getCurrentMode() {
+  return config.execution.mode || "paper";
+}
+
+function classifyNoteMode(note = "") {
+  const text = String(note || "").toLowerCase();
+  if (text.includes("approval")) return "approval";
+  if (text.includes("autonomous")) return "autonomous";
+  if (text.includes("paper")) return "paper";
+  return null;
+}
+
+function noteMatchesMode(noteEntry, mode) {
+  const noteMode = classifyNoteMode(noteEntry?.note);
+  if (!noteMode) return true;
+  if (mode === "autonomous") return noteMode === "autonomous";
+  return noteMode === mode;
+}
+
+function finalizeSummary(summary) {
+  const scoreBase = Math.max(1, summary.cycles || 1);
+  const reliabilityScore = Number(((summary.successfulExecutions - summary.blockedExecutions - summary.severeIncidents - summary.errorEvents - summary.iocCancelEvents * 0.5 - summary.streamFailures) / scoreBase).toFixed(2));
+  const promotionReady = summary.enabled
+    && summary.cycles >= 5
+    && summary.severeIncidents === 0
+    && summary.driftEvents <= 1
+    && summary.iocCancelEvents <= 1
+    && summary.errorEvents === 0
+    && summary.streamFailures === 0;
+
+  return {
+    ...summary,
+    reliabilityScore,
+    promotionReady,
+  };
+}
+
+function summarizeForMode(state, mode = getCurrentMode()) {
+  const notes = Array.isArray(state.notes) ? state.notes.filter((entry) => noteMatchesMode(entry, mode)) : [];
+  const summary = {
+    ...state,
+    currentMode: mode,
+    notes,
+  };
+
+  if (mode === "paper") {
+    summary.cycles = state.paperCycles;
+    summary.approvalsReviewed = 0;
+  } else if (mode === "approval") {
+    summary.cycles = state.approvalCycles;
+  } else if (mode === "autonomous") {
+    summary.cycles = state.tinyAutonomousCycles;
+    summary.approvalsReviewed = 0;
+  }
+
+  return finalizeSummary(summary);
 }
 
 function load() {
@@ -101,19 +160,10 @@ export function recordBurnInEvent(event = {}) {
 
 export function summarizeBurnInState() {
   const state = load();
-  const scoreBase = Math.max(1, state.cycles || 1);
-  const reliabilityScore = Number(((state.successfulExecutions - state.blockedExecutions - state.severeIncidents - state.errorEvents - state.iocCancelEvents * 0.5 - state.streamFailures) / scoreBase).toFixed(2));
-  const promotionReady = state.enabled
-    && state.cycles >= 5
-    && state.severeIncidents === 0
-    && state.driftEvents <= 1
-    && state.iocCancelEvents <= 1
-    && state.errorEvents === 0
-    && state.streamFailures === 0;
+  return finalizeSummary(state);
+}
 
-  return {
-    ...state,
-    reliabilityScore,
-    promotionReady,
-  };
+export function summarizeBurnInStateForMode(mode = getCurrentMode()) {
+  const state = load();
+  return summarizeForMode(state, mode);
 }

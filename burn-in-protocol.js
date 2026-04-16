@@ -1,7 +1,8 @@
-import { summarizeBurnInState } from "./burn-in.js";
+import { summarizeBurnInStateForMode } from "./burn-in.js";
 import { getNormalizedAccountState } from "./account-state.js";
 import { buildExecutionReliabilitySummary } from "./execution-reliability.js";
 import { buildCompoundingContext } from "./compounding.js";
+import { config } from "./config.js";
 
 export function buildBurnInChecklist({ burnIn = null, goLive = null } = {}) {
   const state = burnIn || summarizeBurnInState();
@@ -26,9 +27,10 @@ export function buildBurnInChecklist({ burnIn = null, goLive = null } = {}) {
 }
 
 export async function buildBurnInProtocolSummary() {
-  const burnIn = summarizeBurnInState();
+  const currentMode = config.execution.mode || "paper";
+  const burnIn = summarizeBurnInStateForMode(currentMode);
   const account = await getNormalizedAccountState().catch(() => null);
-  const reliability = buildExecutionReliabilitySummary(300);
+  const reliability = buildExecutionReliabilitySummary(300, { mode: currentMode });
   const compounding = buildCompoundingContext({ limit: 300, account });
   const lightweightGoLive = {
     okForTinyAutonomous: Boolean(
@@ -45,8 +47,11 @@ export async function buildBurnInProtocolSummary() {
     burnIn,
     lightweightGoLive,
     checklist,
-    nextStageRecommendation: !checklist.checklist.find((item) => !item.pass)
-      ? (burnIn.stage === "paper" ? "approval" : burnIn.stage === "approval" ? "autonomous_tiny" : "continue_supervised")
-      : burnIn.stage,
+    nextStageRecommendation: currentMode === "paper"
+      ? "paper"
+      : (!checklist.checklist.find((item) => !item.pass)
+        ? (burnIn.stage === "paper" ? "approval" : burnIn.stage === "approval" ? "autonomous_tiny" : "continue_supervised")
+        : burnIn.stage),
+    currentMode,
   };
 }

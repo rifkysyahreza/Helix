@@ -14,17 +14,19 @@ import { evaluateStreamHealth } from "./stream-health.js";
 import { getStreamSubscriptionsRuntime } from "./market-stream.js";
 import { buildAutonomySessionState } from "./autonomy-session-state.js";
 import { buildBurnInProtocolSummary } from "./burn-in-protocol.js";
+import { config } from "./config.js";
 
 export async function buildHealthSummary({ limit = 100 } = {}) {
   const trades = listRecentTrades(limit);
   const pendingIntents = listPendingIntents();
   const controls = getOperatorControls();
-  const reliability = buildExecutionReliabilitySummary(300);
+  const currentMode = config.execution.mode || "paper";
+  const reliability = buildExecutionReliabilitySummary(300, { mode: currentMode });
   const account = await getNormalizedAccountState().catch(() => null);
   const reconciliation = await reconcileExecutionLeftovers(limit).catch(() => null);
   const goLive = await buildGoLiveCheck().catch(() => null);
   const perf = getPerformanceProfileSummary();
-  const incidents = summarizeExecutionIncidents(200);
+  const incidents = summarizeExecutionIncidents(200, { mode: currentMode });
   const runtimeResilience = getRuntimeResilienceState();
   const watchdog = evaluateRuntimeWatchdog();
   const startupRecoveryPreview = await runStartupRecovery({ autoAct: false, previewOnly: true }).catch(() => null);
@@ -46,8 +48,9 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
   summaryLines.push(`Drift count: ${drifts.length}`);
   summaryLines.push(`Lifecycle repairs: ${lifecycleRepairs.length}`);
   summaryLines.push(`Controls: halted=${controls.halted} closeOnly=${controls.closeOnly} suspended=${Object.keys(controls.suspendedSymbols || {}).length}`);
+  summaryLines.push(`Reporting mode: ${currentMode}`);
   summaryLines.push(`Go-live recommendation: ${goLive?.recommendedMode || "unknown"}`);
-  summaryLines.push(`Execution incidents: ${incidents.total}`);
+  summaryLines.push(`Execution incidents (${currentMode}): ${incidents.total}`);
   summaryLines.push(`Runtime watchdog stale: ${watchdog.stale}`);
   summaryLines.push(`Stream health healthy: ${streamHealth.healthy}`);
   summaryLines.push(`Stream reconnects: ${streamRuntime.reconnects || 0}`);
@@ -60,6 +63,7 @@ export async function buildHealthSummary({ limit = 100 } = {}) {
 
   const report = {
     generatedAt: new Date().toISOString(),
+    currentMode,
     account,
     controls,
     trades: {

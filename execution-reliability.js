@@ -1,7 +1,8 @@
 import { listRecentTrades } from "./state.js";
 import { summarizeExecutionIncidents } from "./execution-incidents.js";
+import { config } from "./config.js";
 
-export function buildExecutionReliabilitySummary(limit = 200) {
+export function buildExecutionReliabilitySummary(limit = 200, { mode = null } = {}) {
   const trades = listRecentTrades(limit);
   const bySymbol = {};
 
@@ -37,9 +38,11 @@ export function buildExecutionReliabilitySummary(limit = 200) {
       : 0;
   }
 
-  const incidents = summarizeExecutionIncidents(300);
+  const currentMode = mode || config.execution.mode || "paper";
+  const incidents = summarizeExecutionIncidents(300, { mode: currentMode });
 
   return {
+    currentMode,
     bySymbol,
     incidents,
     worstSymbols: Object.values(bySymbol)

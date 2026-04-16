@@ -1,6 +1,32 @@
 import fs from "fs";
+import { config } from "./config.js";
 
 const INCIDENTS_FILE = "./runtime-data/execution-incidents.jsonl";
+
+function getCurrentMode() {
+  return config.execution.mode || "paper";
+}
+
+function classifyIncidentMode(item = {}) {
+  const mode = item?.context?.mode || item?.mode || null;
+  if (mode === "live") return "autonomous";
+  return mode;
+}
+
+function shouldIncludeIncidentForMode(item, mode) {
+  const incidentMode = classifyIncidentMode(item);
+  if (!incidentMode) {
+    if (mode === "paper") {
+      return [
+        "runtime_dirty_restart_detected",
+        "startup_recovery_run",
+        "reconciliation_repair_marked_closed",
+      ].includes(item?.kind);
+    }
+    return false;
+  }
+  return incidentMode === mode;
+}
 
 export function recordExecutionIncident(incident) {
   fs.mkdirSync("./runtime-data", { recursive: true });
@@ -29,17 +55,21 @@ export function listExecutionIncidents(limit = 100) {
     });
 }
 
-export function summarizeExecutionIncidents(limit = 200) {
+export function summarizeExecutionIncidents(limit = 200, { mode = null } = {}) {
+  const currentMode = mode || getCurrentMode();
   const incidents = listExecutionIncidents(limit);
-  const counts = incidents.reduce((acc, item) => {
+  const filtered = incidents.filter((item) => shouldIncludeIncidentForMode(item, currentMode));
+  const counts = filtered.reduce((acc, item) => {
     const key = item.kind || "unknown";
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
 
   return {
-    total: incidents.length,
+    total: filtered.length,
     counts,
-    latest: incidents.slice(-10),
+    latest: filtered.slice(-10),
+    currentMode,
+    allTimeTotal: incidents.length,
   };
 }
