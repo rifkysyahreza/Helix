@@ -3,15 +3,27 @@ import { listRecentTrades, updateTradeExecutionState, updateTradeLifecycle } fro
 import { recordExecutionIncident } from "./execution-incidents.js";
 import { evaluateRestingOrderEscalation } from "./resting-order-policy.js";
 
-function shouldMarkTradeFlat(trade, position) {
+function shouldMarkTradeFlat(trade, position, account) {
   if (position) return false;
   if (trade.status !== "open") return false;
   const exchangeState = trade.executionState?.exchangeState;
   const remainingCloseSize = trade.executionState?.remainingCloseSize;
   const remainingReduceSize = trade.executionState?.remainingReduceSize;
-  return ["filled", "partially_filled", "cancelled"].includes(exchangeState)
+  const hasExchangeIdentity = trade.exchange?.oid != null || trade.exchange?.status != null || trade.executionState?.restingOrderOid != null;
+  const missingAccountUser = !account?.user;
+  const staleSyntheticPending = trade.lifecyclePhase === "open_pending" && !hasExchangeIdentity;
+
+  if (["filled", "partially_filled", "cancelled"].includes(exchangeState)
     && (remainingCloseSize === 0 || remainingCloseSize == null)
-    && (remainingReduceSize === 0 || remainingReduceSize == null);
+    && (remainingReduceSize === 0 || remainingReduceSize == null)) {
+    return true;
+  }
+
+  if (staleSyntheticPending && missingAccountUser) {
+    return true;
+  }
+
+  return false;
 }
 
 export async function reconcileExecutionLeftovers(limit = 200) {
@@ -63,15 +75,16 @@ export async function reconcileExecutionLeftovers(limit = 200) {
       updates.push({ tradeId: trade.tradeId, symbol: trade.symbol, patch });
     }
 
-    if (shouldMarkTradeFlat(trade, position)) {
+    if (shouldMarkTradeFlat(trade, position, account)) {
+      const syntheticPending = trade.lifecyclePhase === "open_pending" && !(trade.exchange?.oid != null || trade.exchange?.status != null || trade.executionState?.restingOrderOid != null) && !account?.user;
       updateTradeLifecycle(trade.tradeId, {
         status: "closed",
         lifecyclePhase: "closed",
-        closeReason: trade.closeReason || "reconciled_flat",
+        closeReason: trade.closeReason || (syntheticPending ? "reconciled_stale_pending" : "reconciled_flat"),
         closedAt: trade.closedAt || new Date().toISOString(),
-        lastExchangeState: "reconciled_flat",
+        lastExchangeState: syntheticPending ? "reconciled_stale_pending" : "reconciled_flat",
       });
-      const repair = { tradeId: trade.tradeId, symbol: trade.symbol, repair: "marked_closed_from_exchange_flat" };
+      const repair = { tradeId: trade.tradeId, symbol: trade.symbol, repair: syntheticPending ? "marked_closed_from_stale_pending" : "marked_closed_from_exchange_flat" };
       lifecycleRepairs.push(repair);
       recordExecutionIncident({ kind: "reconciliation_repair_marked_closed", ...repair });
     } else if (trade.status === "closed" && position) {
